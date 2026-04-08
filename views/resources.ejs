@@ -1,0 +1,59 @@
+<%- include('partials/header') %>
+    <section class="page-title">
+        <span class="eyebrow" data-i18n="resources.eyebrow">Slide Library</span>
+        <h1 data-i18n="resources.title">课件库</h1>
+        <p data-i18n="resources.description">按学科查看课件、PPT、笔记和复习资料，支持链接或本地文件上传。</p>
+    </section>
+
+    <section class="filters-shell card section-card">
+        <form class="filter-form" action="/resources" method="GET">
+            <select class="form-control" name="subject">
+                <option value="" data-i18n="resources.allSubjects">全部学科</option>
+                <% boards.forEach(board => { %>
+                    <option value="<%= board.slug %>" <%= filters.subject === board.slug ? 'selected' : '' %>><%= board.name %></option>
+                <% }) %>
+            </select>
+            <input class="form-control" type="search" name="q" placeholder="" data-i18n-placeholder="resources.searchPlaceholder" value="<%= filters.q %>">
+            <button class="btn btn-primary" type="submit" data-i18n="common.filter">筛选</button>
+        </form>
+    </section>
+
+    <section class="layout-grid">
+        <div class="content-stack">
+            <div class="resource-list">
+                <% if (resources.length) { %>
+                    <% resources.forEach(resource => { %>
+                        <article class="card resource-card">
+                            <div class="panel-head panel-head--compact">
+                                <div class="tag-row">
+                                    <span class="tag"><%= resource.board_name %></span>
+                                    <span class="status-badge <%= resource.status === 'approved' ? 'status-approved' : 'status-pending' %>" data-i18n="resources.status_<%= resource.status %>"><%= resource.status %></span>
+                                </div>
+                                <span class="helper-text"><%= formatDate(resource.created_at, true) %></span>
+                            </div>
+                            <h3><%= resource.title %></h3>
+                            <p data-i18n="resources.description"><%= resource.description || '' %></p>
+                            <div class="meta-row">
+                                <span><%= resource.teacher || '' %></span>
+                                <span><span data-i18n="resources.download">下载</span> <%= resource.download_count %></span>
+                                <span><span data-i18n="resources.like">点赞</span> <%= resource.like_count %></span>
+                            </div>
+                            <div class="resource-actions">
+                                <% if (resource.status === 'approved') { %>
+                                    <a class="btn btn-primary" href="/resources/<%= resource.id %>/download" data-i18n="resources.downloadResource">下载资源</a>
+                                <% } %>
+                                <% if (user) { %>
+                                    <form action="/resources/<%= resource.id %>/like" method="POST">
+                                        <button class="btn btn-ghost" type="submit" data-i18n="resources.likeResource">点赞资源</button>
+                                    </form>
+                                <% } %>
+                            </div>
+                        </article>
+                    <% }) %>
+                <% } else { %>
+                    <div class="empty-state" data-i18n="resources.noResources">暂时没有资源记录。</div>
+                <% } %>
+            </div>
+        </div>
+    </section>
+<%- include('partials/footer') %>

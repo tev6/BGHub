@@ -1,0 +1,112 @@
+<%- include('partials/header') %>
+    <section class="page-title">
+        <span class="eyebrow" data-i18n="chat.title">聊天</span>
+        <h1 data-i18n="chat.classGroup">班级群</h1>
+    </section>
+
+    <section class="full-chat-page">
+        <div class="chat-container">
+            <div class="chat-messages" data-chat-stream id="chat-messages">
+                <% if (chatMessages.length) { %>
+                    <% chatMessages.forEach(message => { %>
+                        <div class="chat-bubble" data-message-id="<%= message.id %>">
+                            <div class="chat-bubble-head">
+                                <strong><%= message.author_name %></strong>
+                                <span><%= formatDate(message.created_at, true) %></span>
+                                <% if (user && user.id !== message.user_id) { %>
+                                    <button class="btn btn-ghost btn-xs chat-report-btn" type="button" onclick="showReportModal('chat', <%= message.id %>)" title="举报">🚩</button>
+                                <% } %>
+                            </div>
+                            <p><%= message.content %></p>
+                        </div>
+                    <% }) %>
+                <% } else { %>
+                    <div class="empty-state" data-i18n="chat.noMessages">聊天区暂时还没有消息。</div>
+                <% } %>
+            </div>
+
+            <% if (user) { %>
+                <form class="chat-form chat-form-full" data-chat-form id="chat-form">
+                    <textarea class="form-control" name="content" rows="2"
+                        placeholder="按 Enter 发送，Shift+Enter 换行"
+                        data-i18n-placeholder="chat.placeholder"
+                        data-chat-textarea id="chat-textarea" required></textarea>
+                    <button class="btn btn-primary" type="submit" data-i18n="common.send" data-chat-submit-btn>发送</button>
+                    <div class="chat-error" data-chat-error hidden></div>
+                    <div class="chat-pending" data-chat-pending hidden></div>
+                    <div class="chat-cooldown" data-chat-cooldown hidden></div>
+                </form>
+                <% if (user.role_level <= 1) { %>
+                <div class="chat-audit-notice">
+                    <span class="chat-audit-icon">ℹ️</span>
+                    <span data-i18n="chat.auditNotice">您的消息发送前需经过 AI 审核，审核通过后将显示在聊天区。</span>
+                </div>
+                <% } %>
+            <% } else { %>
+                <div class="chat-login-prompt">
+                    <p data-i18n="chat.loginPrompt">登录后可在聊天区发言。</p>
+                    <a href="/login" class="btn btn-primary" data-i18n="nav.login">登录</a>
+                </div>
+            <% } %>
+        </div>
+    </section>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var chatStream = document.getElementById('chat-messages');
+        if (chatStream) {
+            chatStream.scrollTop = chatStream.scrollHeight;
+        }
+    });
+    </script>
+
+    <style>
+    .full-chat-page {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 200px);
+        min-height: 400px;
+    }
+    .chat-container {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        background: var(--surface);
+        border-radius: 0.5rem;
+        overflow: hidden;
+    }
+    .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    .chat-form-full {
+        display: flex;
+        gap: 0.5rem;
+        padding: 1rem;
+        background: var(--background);
+        border-top: 1px solid var(--line);
+    }
+    .chat-form-full textarea {
+        flex: 1;
+    }
+    .chat-login-prompt {
+        padding: 1rem;
+        background: var(--background);
+        border-top: 1px solid var(--line);
+        text-align: center;
+    }
+    .chat-login-prompt p {
+        margin-bottom: 0.75rem;
+    }
+    .chat-report-btn {
+        margin-left: auto;
+        padding: 0.1rem 0.3rem;
+        font-size: 0.75rem;
+    }
+    </style>
+<%- include('report-modal') %>
+<%- include('partials/footer') %>

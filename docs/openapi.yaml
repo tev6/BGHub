@@ -1,0 +1,1063 @@
+openapi: 3.0.3
+info:
+  title: BIGZ Hub API
+  description: 贝赛思校园学习助手 API 文档
+  version: 2.0.0
+  contact:
+    name: BIGZ Hub Team
+
+servers:
+  - url: http://localhost:3000
+    description: 本地开发服务器
+
+paths:
+  /api/auth/register:
+    post:
+      summary: 用户注册
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - name
+                - grade
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: 学校邮箱或 Gmail
+                password:
+                  type: string
+                  minLength: 8
+                  description: 密码至少8位
+                name:
+                  type: string
+                  minLength: 2
+                  description: 昵称
+                grade:
+                  type: string
+                  pattern: "^G(6|7|8|9|10|11|12)$"
+                  description: 年级 G6-G12
+                supercode:
+                  type: string
+                  description: 隐藏码（可选，用于申请管理员）
+      responses:
+        '201':
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  errors:
+                    type: array
+                    items:
+                      type: string
+
+  /api/auth/login:
+    post:
+      summary: 用户登录
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: 邮箱或密码错误
+
+  /api/auth/logout:
+    post:
+      summary: 用户登出
+      tags:
+        - Authentication
+      responses:
+        '200':
+          description: 登出成功
+
+  /api/dashboard:
+    get:
+      summary: 获取仪表盘数据
+      tags:
+        - Dashboard
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  boards:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Board'
+                  stats:
+                    type: object
+                    properties:
+                      exams:
+                        type: integer
+                      homeworks:
+                        type: integer
+                      resources:
+                        type: integer
+                      posts:
+                        type: integer
+                  upcomingExams:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Exam'
+                  dueHomeworks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Homework'
+                  recentPosts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Post'
+                  resources:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Resource'
+                  chatMessages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChatMessage'
+
+  /api/boards:
+    get:
+      summary: 获取所有学科板块
+      tags:
+        - Boards
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  boards:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Board'
+
+  /api/forum/posts:
+    get:
+      summary: 获取帖子列表
+      tags:
+        - Forum
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: 搜索关键词
+        - name: subject
+          in: query
+          schema:
+            type: string
+          description: 学科slug
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [latest, hot]
+          description: 排序方式
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [question, note, share]
+          description: 帖子类型
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  posts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Post'
+    post:
+      summary: 创建帖子
+      tags:
+        - Forum
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - board_id
+                - title
+                - content
+              properties:
+                board_id:
+                  type: integer
+                title:
+                  type: string
+                  minLength: 4
+                content:
+                  type: string
+                  minLength: 10
+                post_type:
+                  type: string
+                  enum: [question, note, share]
+                is_anonymous:
+                  type: boolean
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  post:
+                    $ref: '#/components/schemas/Post'
+
+  /api/forum/posts/{id}:
+    get:
+      summary: 获取帖子详情
+      tags:
+        - Forum
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  post:
+                    $ref: '#/components/schemas/Post'
+                  comments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Comment'
+        '404':
+          description: 帖子不存在
+    put:
+      summary: 更新帖子
+      tags:
+        - Forum
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                content:
+                  type: string
+                post_type:
+                  type: string
+                is_anonymous:
+                  type: boolean
+      responses:
+        '200':
+          description: 更新成功
+    delete:
+      summary: 删除帖子
+      tags:
+        - Forum
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 删除成功
+
+  /api/forum/posts/{id}/comments:
+    post:
+      summary: 添加评论
+      tags:
+        - Forum
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                  minLength: 2
+      responses:
+        '201':
+          description: 评论成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  comment:
+                    $ref: '#/components/schemas/Comment'
+
+  /api/exams:
+    get:
+      summary: 获取考试列表
+      tags:
+        - Exams
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  exams:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Exam'
+    post:
+      summary: 创建考试提醒
+      tags:
+        - Exams
+      security:
+        - cookieAuth: []
+      required:
+        - level_3_or_above
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - board_id
+                - title
+                - exam_type
+                - grade
+                - exam_date
+              properties:
+                board_id:
+                  type: integer
+                title:
+                  type: string
+                exam_type:
+                  type: string
+                grade:
+                  type: string
+                exam_date:
+                  type: string
+                  format: date-time
+                description:
+                  type: string
+                teacher:
+                  type: string
+                is_priority:
+                  type: boolean
+      responses:
+        '201':
+          description: 创建成功
+
+  /api/homeworks:
+    get:
+      summary: 获取作业列表
+      tags:
+        - Homeworks
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  homeworks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Homework'
+    post:
+      summary: 创建作业
+      tags:
+        - Homeworks
+      security:
+        - cookieAuth: []
+      required:
+        - level_3_or_above
+      responses:
+        '201':
+          description: 创建成功
+
+  /api/resources:
+    get:
+      summary: 获取资源列表
+      tags:
+        - Resources
+      parameters:
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  resources:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Resource'
+    post:
+      summary: 上传资源
+      tags:
+        - Resources
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                board_id:
+                  type: integer
+                title:
+                  type: string
+                description:
+                  type: string
+                teacher:
+                  type: string
+                external_url:
+                  type: string
+                resourceFile:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: 上传成功
+
+  /api/chat/messages:
+    post:
+      summary: 发送聊天消息
+      tags:
+        - Chat
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+      responses:
+        '201':
+          description: 发送成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    $ref: '#/components/schemas/ChatMessage'
+        '400':
+          description: 内容不合法
+
+  /api/search:
+    get:
+      summary: 搜索内容
+      tags:
+        - Search
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  term:
+                    type: string
+                  results:
+                    type: object
+                    properties:
+                      posts:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Post'
+                      resources:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Resource'
+                      exams:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Exam'
+                      homeworks:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Homework'
+                      sections:
+                        type: array
+                        items:
+                          type: object
+
+  /api/review/items:
+    get:
+      summary: 获取待审核列表
+      tags:
+        - Review
+      security:
+        - cookieAuth: []
+      required:
+        - level_3_or_above
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ReviewItem'
+                  pagination:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                      totalPages:
+                        type: integer
+                      totalItems:
+                        type: integer
+
+  /api/review/items/{id}:
+    get:
+      summary: 获取审核项详情
+      tags:
+        - Review
+      security:
+        - cookieAuth: []
+      required:
+        - level_3_or_above
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  item:
+                    $ref: '#/components/schemas/ReviewItem'
+                  content:
+                    type: object
+                  history:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ReviewAction'
+        '404':
+          description: 审核项不存在
+
+  /api/review/items/{id}/approve:
+    post:
+      summary: 通过审核
+      tags:
+        - Review
+      security:
+        - cookieAuth: []
+      required:
+        - level_3_or_above
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 10
+                  maxLength: 200
+      responses:
+        '200':
+          description: 审核通过
+        '400':
+          description: 理由长度不合规
+        '429':
+          description: 请求过于频繁
+
+  /api/review/items/{id}/reject:
+    post:
+      summary: 驳回审核
+      tags:
+        - Review
+      security:
+        - cookieAuth: []
+      required:
+        - level_3_or_above
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 10
+                  maxLength: 200
+      responses:
+        '200':
+          description: 审核驳回
+        '429':
+          description: 请求过于频繁
+
+  /api/admin/logs:
+    get:
+      summary: 获取管理员操作日志
+      tags:
+        - Admin
+      security:
+        - cookieAuth: []
+      required:
+        - level_5_or_above
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  logs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminLog'
+
+  /api/admin/credit:
+    post:
+      summary: 修改用户信用值
+      tags:
+        - Admin
+      security:
+        - cookieAuth: []
+      required:
+        - level_6_admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_id
+                - delta
+                - password
+              properties:
+                user_id:
+                  type: integer
+                delta:
+                  type: integer
+                password:
+                  type: string
+      responses:
+        '200':
+          description: 修改成功
+        '403':
+          description: 密码验证失败
+
+  /api/admin/ban:
+    post:
+      summary: 封禁/解封用户
+      tags:
+        - Admin
+      security:
+        - cookieAuth: []
+      required:
+        - level_6_admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_id
+                - password
+              properties:
+                user_id:
+                  type: integer
+                days:
+                  type: integer
+                  description: 封禁天数，0表示解封
+                reason:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: 操作成功
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: connect.sid
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        grade:
+          type: string
+        role:
+          type: string
+        role_level:
+          type: integer
+        credit:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    Board:
+      type: object
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        color:
+          type: string
+
+    Post:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        post_type:
+          type: string
+          enum: [question, note, share]
+        is_anonymous:
+          type: boolean
+        is_resolved:
+          type: boolean
+        view_count:
+          type: integer
+        comment_count:
+          type: integer
+        review_status:
+          type: string
+        board_name:
+          type: string
+        author_name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    Comment:
+      type: object
+      properties:
+        id:
+          type: integer
+        content:
+          type: string
+        is_best:
+          type: boolean
+        like_count:
+          type: integer
+        author_name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    Exam:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        exam_type:
+          type: string
+        grade:
+          type: string
+        exam_date:
+          type: string
+          format: date-time
+        description:
+          type: string
+        teacher:
+          type: string
+        board_name:
+          type: string
+
+    Homework:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        teacher:
+          type: string
+        deadline:
+          type: string
+          format: date-time
+        is_completed:
+          type: boolean
+        board_name:
+          type: string
+
+    Resource:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        teacher:
+          type: string
+        file_name:
+          type: string
+        download_count:
+          type: integer
+        like_count:
+          type: integer
+        board_name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    ChatMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+        content:
+          type: string
+        author_name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        created_at_display:
+          type: string
+
+    ReviewItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        item_type:
+          type: string
+          enum: [post, chat, resource]
+        item_id:
+          type: integer
+        payload:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        author_name:
+          type: string
+        reviewer_name:
+          type: string
+        decision_reason:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    ReviewAction:
+      type: object
+      properties:
+        id:
+          type: integer
+        review_id:
+          type: integer
+        reviewer_id:
+          type: integer
+        reviewer_name:
+          type: string
+        action:
+          type: string
+          enum: [approve, reject]
+        reason:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    AdminLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        admin_user_id:
+          type: integer
+        admin_name:
+          type: string
+        action:
+          type: string
+        target_user_id:
+          type: integer
+        target_name:
+          type: string
+        ip:
+          type: string
+        created_at:
+          type: string
+          format: date-time

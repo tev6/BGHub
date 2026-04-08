@@ -1,0 +1,95 @@
+<%- include('partials/header') %>
+    <section class="page-title">
+        <span class="eyebrow" data-i18n="exams.eyebrow">Exam Calendar</span>
+        <h1 data-i18n="exams.title">考试日历</h1>
+        <p data-i18n="exams.description">查看即将到来的考试、截止事项与重点复习提醒。</p>
+    </section>
+
+    <section class="filters-shell card section-card">
+        <form class="filter-form" action="/exams" method="GET">
+            <select class="form-control" name="subject">
+                <option value="">全部学科</option>
+                <% boards.forEach(board => { %>
+                    <option value="<%= board.slug %>" <%= filters.subject === board.slug ? 'selected' : '' %>><%= board.name %></option>
+                <% }) %>
+            </select>
+            <select class="form-control" name="grade">
+                                <option value=""<%= filters.grade === '' ? ' selected' : '' %>>全部年级</option>
+                <% ['G6','G7','G8','G9','G10','G11','G12'].forEach(grade => { %>
+                    <option value="<%= grade %>" <%= filters.grade === grade ? 'selected' : '' %>><%= grade %></option>
+                <% }) %>
+            </select>
+            <select class="form-control" name="type">
+                <option value=""<%= filters.type === '' ? ' selected' : '' %>>全部类型</option>
+                <% ['单元测试','期中','期末','AP 模考','论文截止','实验报告'].forEach(type => { %>
+                    <option value="<%= type %>" <%= filters.type === type ? 'selected' : '' %>><%= type %></option>
+                <% }) %>
+            </select>
+            <button class="btn btn-primary" type="submit">筛选</button>
+        </form>
+    </section>
+
+    <section class="layout-grid">
+        <div class="content-stack">
+            <div class="exam-list">
+                <% if (exams.length) { %>
+                    <% exams.forEach(exam => { %>
+                        <article class="card exam-card">
+                            <div class="panel-head panel-head--compact">
+                                <div class="tag-row">
+                                    <span class="tag"><%= exam.board_name %></span>
+                                    <span class="tag"><%= exam.exam_type %></span>
+                                    <% if (exam.is_priority) { %>
+                                        <span class="status-badge status-pending">重点关注</span>
+                                    <% } %>
+                                </div>
+                                <span class="helper-text"><%= buildCountdown(exam.exam_date) %></span>
+                            </div>
+                            <h3><%= exam.title %></h3>
+                            <p><%= exam.description || '暂无详细说明' %></p>
+                            <div class="meta-row">
+                                <span><%= exam.grade %></span>
+                                <span><%= exam.teacher || '待补充教师' %></span>
+                                <span><%= formatDate(exam.exam_date, true) %></span>
+                            </div>
+                        </article>
+                    <% }) %>
+                <% } else { %>
+                    <div class="empty-state">当前没有匹配的考试信息。</div>
+                <% } %>
+            </div>
+        </div>
+
+        <% if (user && isStaff(user)) { %>
+            <aside class="sidebar-stack">
+                <article class="card section-card">
+                    <h3>新增考试提醒</h3>
+                    <form class="form-grid" action="/exams" method="POST">
+                        <select class="form-control" name="board_id" required>
+                            <option value="">选择学科</option>
+                            <% boards.forEach(board => { %>
+                                <option value="<%= board.id %>"><%= board.name %></option>
+                            <% }) %>
+                        </select>
+                        <input class="form-control" type="text" name="title" placeholder="例如：Unit 3 Test" required>
+                        <input class="form-control" type="text" name="exam_type" placeholder="例如：单元测试" required>
+                        <select class="form-control" name="grade" required>
+                            <option value="">选择年级</option>
+                            <% ['G6','G7','G8','G9','G10','G11','G12'].forEach(grade => { %>
+                                <option value="<%= grade %>"><%= grade %></option>
+                            <% }) %>
+                        </select>
+                        <input class="form-control" type="datetime-local" name="exam_date" required>
+                        <input class="form-control" type="text" name="teacher" placeholder="任课老师">
+                        <textarea class="form-control" name="description" rows="5" placeholder="考试范围、备注、额外说明"></textarea>
+                        <label class="action-row">
+                            <input type="checkbox" name="is_priority" value="1">
+                            <span>标记为重点关注</span>
+                        </label>
+                        <button class="btn btn-primary" type="submit">创建考试提醒</button>
+                    </form>
+                </article>
+            </aside>
+        <% } %>
+    </section>
+<%- include('partials/footer') %>

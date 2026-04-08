@@ -1,0 +1,35 @@
+{
+  "name": "bigz-hub-mvp",
+  "version": "2.0.0",
+  "description": "贝赛思校园学习助手 MVP",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "test": "node --test tests/**/*.test.js"
+  },
+  "keywords": [
+    "campus",
+    "forum",
+    "mvp",
+    "express",
+    "sqlite"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "connect-sqlite3": "^0.9.15",
+    "dompurify": "^3.2.5",
+    "dotenv": "^16.5.0",
+    "ejs": "^3.1.10",
+    "express": "^5.1.0",
+    "express-session": "^1.18.1",
+    "jsdom": "^26.1.0",
+    "marked": "^15.0.11",
+    "multer": "^2.0.2",
+    "openai": "^4.90.0",
+    "resend": "^4.8.0",
+    "sqlite3": "^5.1.7",
+    "ws": "^8.18.3"
+  }
+}

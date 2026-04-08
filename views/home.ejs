@@ -1,0 +1,139 @@
+<%- include('partials/header') %>
+    <section class="home-layout">
+        <section class="article-column">
+            <div class="panel-head panel-head--compact">
+                <h2 data-tooltip="浏览同学们分享的学习笔记与讨论" data-i18n="home.title">文章 / 笔记</h2>
+                <a href="/forum" class="text-link" data-i18n="common.viewAll">查看全部</a>
+            </div>
+
+            <div class="article-list">
+                <% if (recentPosts.length) { %>
+                    <% recentPosts.forEach(post => { %>
+                        <article class="article-card">
+                            <a href="/forum/<%= post.id %>" class="article-link">
+                                <div class="article-body">
+                                    <div class="article-head">
+                                        <span class="tag"><%= post.board_name %></span>
+                                        <span class="helper-text"><%= formatDate(post.created_at, true) %></span>
+                                    </div>
+                                    <h3 class="article-title"><%= post.title %></h3>
+                                    <p class="article-excerpt"><%= excerpt(post.content, 140) %></p>
+                                    <div class="article-meta">
+                                        <span><%= post.author_name || '匿名同学' %></span>
+                                        <span><%= post.comment_count %> <span data-i18n="forum.replies">条回复</span></span>
+                                        <span><%= post.view_count %> <span data-i18n="forum.views">次浏览</span></span>
+                                    </div>
+                                </div>
+                            </a>
+                        </article>
+                    <% }) %>
+                <% } else { %>
+                    <div class="empty-state" data-i18n="forum.noPosts">还没有文章或笔记。</div>
+                <% } %>
+            </div>
+        </section>
+
+        <aside class="cj-panel">
+            <div class="panel-head panel-head--compact cj-panel-head">
+                <h2 data-tooltip="点击学科卡片查看作业、课件、公告" data-i18n="home.cjTitle">CJ</h2>
+            </div>
+            <form class="cj-date-selector" action="/" method="GET">
+                <div class="date-nav-row">
+                    <a href="/?date=<%= dateNavData.prevDate %>" class="btn btn-ghost date-nav-btn">
+                        <span>‹</span>
+                    </a>
+                    <span class="date-nav-current"><%= dateNavData.display %></span>
+                    <a href="/?date=<%= dateNavData.nextDate %>" class="btn btn-ghost date-nav-btn <%= dateNavData.isFuture ? 'disabled' : '' %>" <%= dateNavData.isFuture ? 'aria-disabled="true"' : '' %>>
+                        <span>›</span>
+                    </a>
+                </div>
+            </form>
+            <div class="cj-panel-body">
+                <div class="cj-list">
+                    <% boards.forEach(board => { %>
+                        <a class="cj-card" href="/boards/<%= board.slug %>">
+                            <div class="cj-card-top">
+                                <strong class="board-name"><%= (locale === 'en' && board.name_en) ? board.name_en : board.name %></strong>
+                                <span class="board-dot" style="background:<%= board.color %>"></span>
+                            </div>
+                            <div class="cj-card-meta">
+                                <div><span class="cj-label">IC</span><span><%= excerpt(board.sections.IC ? board.sections.IC.content : (locale === 'en' ? 'To be added' : '待补充'), 36) %></span></div>
+                                <div><span class="cj-label">HW</span><span><%= excerpt(board.sections.HW ? board.sections.HW.content : (locale === 'en' ? 'To be added' : '待补充'), 36) %></span></div>
+                                <div><span class="cj-label">A</span><span><%= excerpt(board.sections.A ? board.sections.A.content : (locale === 'en' ? 'To be added' : '待补充'), 36) %></span></div>
+                            </div>
+                        </a>
+                    <% }) %>
+                </div>
+            </div>
+        </aside>
+
+        <aside class="right-column">
+            <div class="right-stack">
+                <section class="card right-card chat-card">
+                    <div class="panel-head panel-head--compact">
+                        <h2 data-i18n="chat.title">聊天</h2>
+                        <span class="helper-text" data-i18n="chat.classGroup">年级群</span>
+                        <a href="/chat" class="btn btn-ghost" data-i18n="chat.enterChat">进入聊天</a>
+                    </div>
+
+                    <div class="chat-stream" data-chat-stream>
+                        <% if (chatMessages.length) { %>
+                            <% chatMessages.forEach(message => { %>
+                                <div class="chat-bubble">
+                                    <div class="chat-bubble-head">
+                                        <strong><%= message.author_name %></strong>
+                                        <span><%= formatDate(message.created_at, true) %></span>
+                                    </div>
+                                    <p><%= message.content %></p>
+                                </div>
+                            <% }) %>
+                        <% } else { %>
+                            <div class="empty-state" data-i18n="chat.noMessages">聊天区暂时还没有消息。</div>
+                        <% } %>
+                    </div>
+                </section>
+
+                <section class="card right-card resource-card" data-resource-card>
+                    <div class="panel-head panel-head--compact">
+                        <h2 data-i18n="nav.resources">资源</h2>
+                    </div>
+
+                    <div class="resource-accordion" data-resource-list>
+                        <% if (resources.length) { %>
+                            <% resources.slice(0, 3).forEach(resource => { %>
+                                <details class="resource-item" open>
+                                    <summary>
+                                        <strong><%= resource.title %></strong>
+                                        <span class="tag"><%= resource.board_name %></span>
+                                    </summary>
+                                    <div class="resource-item-body">
+                                        <p><%= resource.description || '' %></p>
+                                        <div class="meta-row">
+                                            <span><span data-i18n="common.download">下载</span> <%= resource.download_count %></span>
+                                            <span><span data-i18n="common.like">点赞</span> <%= resource.like_count %></span>
+                                        </div>
+                                    </div>
+                                </details>
+                            <% }) %>
+                        <% } else { %>
+                            <div class="empty-state" data-i18n="resources.none">暂无资源。</div>
+                        <% } %>
+                    </div>
+
+                    <div class="resource-footer">
+                        <a href="/resources" class="btn btn-ghost btn-block" data-i18n="resources.enterLibrary">进入库</a>
+                    </div>
+                </section>
+            </div>
+        </aside>
+    </section>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var chatStream = document.querySelector('[data-chat-stream]');
+        if (chatStream) {
+            chatStream.scrollTop = chatStream.scrollHeight;
+        }
+    });
+    </script>
+<%- include('partials/footer') %>

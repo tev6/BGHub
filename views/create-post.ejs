@@ -1,0 +1,41 @@
+<link rel="stylesheet" href="/css/style.css">
+<div class="form-container">
+    <div class="card">
+        <h2>创建新帖子</h2>
+        <form action="/post" method="POST">
+            <div class="form-group">
+                <label for="title" class="form-label">标题</label>
+                <input type="text" id="title" name="title" class="form-control" placeholder="输入帖子标题" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="summary" class="form-label">文章简介 (必填)</label>
+                <textarea id="summary" name="summary" class="form-control" placeholder="简要描述你的文章内容" required></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">内容编辑模式</label>
+                <div class="editor-tabs">
+                    <button type="button" class="editor-tab active" data-editor="markdown">Markdown</button>
+                    <button type="button" class="editor-tab" data-editor="richText">富文本</button>
+                    <button type="button" class="editor-tab" data-editor="plain">纯文本</button>
+                </div>
+                <div class="editor-area" id="editorArea"></div>
+            </div>
+            
+            <div class="form-group">
+                <label for="category" class="form-label">分类</label>
+                <select id="category" name="category" class="form-control">
+                    <option value="general">综合讨论</option>
+                    <option value="questions">问题求助</option>
+                    <option value="announcements">公告通知</option>
+                </select>
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">发布</button>
+                <a href="/" class="btn btn-secondary">取消</a>
+            </div>
+        </form>
+    </div>
+</div>

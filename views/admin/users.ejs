@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= pageTitle ? `${pageTitle} · BG Hub` : 'BG Hub' %></title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <%- include('../partials/header') %>
+
+    <div class="admin-users-page">
+        <div class="page-header">
+            <h1 data-i18n="admin.users">用户管理</h1>
+            <p class="page-subtitle" data-i18n="admin.usersSubtitle">管理所有注册用户，修改权限等级</p>
+        </div>
+
+        <div class="search-bar">
+            <form method="GET" action="/admin/users">
+                <input class="form-control" type="search" name="q" placeholder="搜索用户名或邮箱..." data-i18n-placeholder="admin.searchPlaceholder" value="<%= search %>">
+                <button class="btn btn-primary" type="submit" data-i18n="common.search">搜索</button>
+            </form>
+        </div>
+
+        <div class="users-table-wrapper">
+            <table class="users-table">
+                <thead>
+                    <tr>
+                        <th data-i18n="admin.colId">ID</th>
+                        <th data-i18n="admin.colUsername">用户名</th>
+                        <th data-i18n="admin.colEmail">邮箱</th>
+                        <th data-i18n="admin.colGrade">年级</th>
+                        <th data-i18n="admin.colLevel">等级</th>
+                        <th data-i18n="admin.colCredit">积分</th>
+                        <th data-i18n="admin.colCreatedAt">注册时间</th>
+                        <th data-i18n="admin.colStatus">状态</th>
+                        <th data-i18n="admin.colActions">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% if (users.length === 0) { %>
+                        <tr>
+                            <td colspan="9" class="empty-cell" data-i18n="admin.noUsers">暂无用户数据</td>
+                        </tr>
+                    <% } else { %>
+                        <% users.forEach(u => { %>
+                            <tr data-user-id="<%= u.id %>">
+                                <td><%= u.id %></td>
+                                <td><strong><%= u.name %></strong></td>
+                                <td><%= u.email %></td>
+                                <td><%= u.grade %></td>
+                                <td>
+                                    <span class="lv-badge lv-<%= u.role_level %>"><%= u.role_name || 'LV' + u.role_level %></span>
+                                </td>
+                                <td><%= u.credit %></td>
+                                <td><%= new Date(u.created_at).toLocaleDateString('zh-CN') %></td>
+                                <td>
+                                    <% if (u.banned_until && new Date(u.banned_until) > new Date()) { %>
+                                        <span class="status-badge banned" data-i18n="admin.banned">已封禁</span>
+                                    <% } else { %>
+                                        <span class="status-badge active" data-i18n="admin.active">正常</span>
+                                    <% } %>
+                                </td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <select class="role-select" data-user-id="<%= u.id %>" onchange="updateRole(<%= u.id %>, this.value)">
+                                            <option value="1" <%= u.role_level === 1 ? 'selected' : '' %>>LV1</option>
+                                            <option value="2" <%= u.role_level === 2 ? 'selected' : '' %>>LV2</option>
+                                            <option value="3" <%= u.role_level === 3 ? 'selected' : '' %>>LV3</option>
+                                            <option value="4" <%= u.role_level === 4 ? 'selected' : '' %>>LV4</option>
+                                            <option value="5" <%= u.role_level === 5 ? 'selected' : '' %>>LV5</option>
+                                            <option value="55" <%= u.role_level === 55 ? 'selected' : '' %>>LV5.5</option>
+                                            <option value="6" <%= u.role_level === 6 ? 'selected' : '' %>>LV6</option>
+                                        </select>
+                                        <% if (u.role_level !== 55) { %>
+                                            <button class="btn btn-sm btn-ghost" onclick="grantLv55(<%= u.id %>)" title="授予教师权限" data-i18n-title="admin.grantTeacher">🎓</button>
+                                        <% } else { %>
+                                            <button class="btn btn-sm btn-ghost" onclick="revokeLv55(<%= u.id %>)" title="撤销教师权限" data-i18n-title="admin.revokeTeacher">↩️</button>
+                                        <% } %>
+                                        <button class="btn btn-sm btn-danger" onclick="deleteUser(<%= u.id %>)" title="删除用户" data-i18n-title="admin.deleteUser">🗑️</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        <% }) %>
+                    <% } %>
+                </tbody>
+            </table>
+        </div>
+
+        <% if (pages > 1) { %>
+        <div class="pagination">
+            <% for (let i = 1; i <= pages; i++) { %>
+                <a href="?page=<%= i %>&q=<%= encodeURIComponent(search) %>" class="<%= i === page ? 'active' : '' %>"><%= i %></a>
+            <% } %>
+        </div>
+        <% } %>
+    </div>
+
+    <script>
+    const fallbackMsgs = {
+        'admin.roleUpdateFailed': '修改失败',
+        'admin.roleUpdateError': '修改失败: ',
+        'admin.grantConfirm': '确认授予该用户 LV5.5（教师）权限？',
+        'admin.grantFailed': '操作失败',
+        'admin.grantError': '操作失败: ',
+        'admin.revokeConfirm': '确认撤销该用户 LV5.5 权限？',
+        'admin.revokeFailed': '操作失败',
+        'admin.revokeError': '操作失败: ',
+        'admin.deleteConfirm': '确认删除该用户？此操作不可撤销！',
+        'admin.deleteConfirm2': '再次确认：删除用户将同时删除其所有发帖、评论等内容。',
+        'admin.deleteFailed': '删除失败',
+        'admin.deleteError': '删除失败: '
+    };
+
+    function getMsg(key) {
+        if (window.i18n && window.i18n.translations) {
+            const val = window.i18n.t(key);
+            if (val !== key) return val;
+        }
+        return fallbackMsgs[key] || '';
+    }
+
+    async function updateRole(userId, level) {
+        try {
+            const res = await fetch(`/api/admin/users/${userId}/role`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ level: parseInt(level) })
+            });
+            if (!res.ok) throw new Error(getMsg('admin.roleUpdateFailed'));
+            location.reload();
+        } catch (e) {
+            alert(getMsg('admin.roleUpdateError') + e.message);
+        }
+    }
+
+    async function grantLv55(userId) {
+        if (!confirm(getMsg('admin.grantConfirm'))) return;
+        try {
+            const res = await fetch(`/api/admin/users/${userId}/grant-lv55`, { method: 'POST' });
+            if (!res.ok) throw new Error(getMsg('admin.grantFailed'));
+            location.reload();
+        } catch (e) {
+            alert(getMsg('admin.grantError') + e.message);
+        }
+    }
+
+    async function revokeLv55(userId) {
+        if (!confirm(getMsg('admin.revokeConfirm'))) return;
+        try {
+            const res = await fetch(`/api/admin/users/${userId}/revoke-lv55`, { method: 'POST' });
+            if (!res.ok) throw new Error(getMsg('admin.revokeFailed'));
+            location.reload();
+        } catch (e) {
+            alert(getMsg('admin.revokeError') + e.message);
+        }
+    }
+
+    async function deleteUser(userId) {
+        if (!confirm(getMsg('admin.deleteConfirm'))) return;
+        if (!confirm(getMsg('admin.deleteConfirm2'))) return;
+        try {
+            const res = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error(getMsg('admin.deleteFailed'));
+            document.querySelector(`tr[data-user-id="${userId}"]`).remove();
+        } catch (e) {
+            alert(getMsg('admin.deleteError') + e.message);
+        }
+    }
+    </script>
+
+    <style>
+    .admin-users-page {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 24px 0;
+    }
+
+    .page-header {
+        margin-bottom: 24px;
+    }
+
+    .page-header h1 {
+        font-size: 1.5rem;
+        color: var(--text);
+        margin: 0 0 4px 0;
+    }
+
+    .page-subtitle {
+        color: var(--muted);
+        font-size: 0.88rem;
+        margin: 0;
+    }
+
+    .search-bar {
+        margin-bottom: 20px;
+    }
+
+    .search-bar form {
+        display: flex;
+        gap: 10px;
+    }
+
+    .search-bar input {
+        max-width: 300px;
+    }
+
+    .users-table-wrapper {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        overflow-x: auto;
+    }
+
+    .users-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .users-table th,
+    .users-table td {
+        padding: 12px 16px;
+        text-align: left;
+        border-bottom: 1px solid var(--line);
+    }
+
+    .users-table th {
+        background: var(--surface-alt);
+        font-size: 0.82rem;
+        color: var(--muted);
+        font-weight: 600;
+    }
+
+    .users-table td {
+        font-size: 0.88rem;
+        color: var(--text);
+    }
+
+    .users-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .empty-cell {
+        text-align: center;
+        color: var(--muted);
+        padding: 40px !important;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 0.75rem;
+    }
+
+    .status-badge.active {
+        background: rgba(22, 163, 74, 0.15);
+        color: #16a34a;
+    }
+
+    .status-badge.banned {
+        background: rgba(220, 38, 38, 0.15);
+        color: #dc2626;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+    }
+
+    .role-select {
+        padding: 4px 8px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--surface);
+        color: var(--text);
+        font-size: 0.82rem;
+    }
+
+    .btn-sm {
+        padding: 4px 8px;
+        font-size: 0.8rem;
+    }
+
+    .pagination {
+        display: flex;
+        gap: 6px;
+        justify-content: center;
+        margin-top: 24px;
+    }
+
+    .pagination a {
+        padding: 6px 12px;
+        border-radius: 6px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        color: var(--text);
+        font-size: 0.88rem;
+        text-decoration: none;
+    }
+
+    .pagination a.active {
+        background: var(--primary);
+        color: #fff;
+        border-color: var(--primary);
+    }
+    </style>
+
+    <%- include('../partials/footer') %>
+</body>
+</html>

@@ -1,0 +1,49 @@
+<%- include('partials/header') %>
+    <div class="card">
+        <h1><%= post.title %></h1>
+        <div class="post-meta">
+            <span>作者: <%= post.username %></span>
+            <span class="post-category"><%= post.category %></span>
+            <span>发布于: <%= new Date(post.created_at).toLocaleString() %></span>
+        </div>
+	<div class="post-content" style="margin: 1.5rem 0; line-height: 1.8;">
+	    <%- formatContent(post.content, post.content_type) %>
+	</div>
+    </div>
+
+    <div class="comments-section">
+        <h2>评论</h2>
+        <% if (locals.user) { %>
+            <div class="card" style="margin-bottom: 2rem;">
+                <form action="/comment" method="POST">
+                    <input type="hidden" name="post_id" value="<%= post.id %>">
+                    <div class="form-group">
+                        <label for="content" class="form-label">发表评论</label>
+                        <textarea id="content" name="content" class="form-control" placeholder="输入你的评论" required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">提交评论</button>
+                </form>
+            </div>
+        <% } %>
+
+        <% if (comments.length > 0) { %>
+            <div class="card">
+                <% comments.forEach(comment => { %>
+                    <div class="comment">
+                        <div class="comment-meta">
+                            <span class="comment-author"><%= comment.username %></span>
+                            <span> · <%= new Date(comment.created_at).toLocaleString() %></span>
+                        </div>
+			<p class="comment-content">
+			    <%- formatContent(comment.content, comment.content_type) %>
+			</p>
+                    </div>
+                <% }); %>
+            </div>
+        <% } else { %>
+            <div class="card">
+                <p style="color: var(--secondary-color); text-align: center;">暂无评论</p>
+            </div>
+        <% } %>
+    </div>
+<%- include('partials/footer') %>

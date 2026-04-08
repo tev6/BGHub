@@ -1,0 +1,62 @@
+<%- include('partials/header') %>
+    <section class="page-title">
+        <span class="eyebrow" data-i18n="resources.uploadTitle">上传资源</span>
+        <h1 data-i18n="resources.uploadTitle">上传资源</h1>
+    </section>
+
+    <section class="layout-grid">
+        <article class="card section-card">
+            <% if (errors && errors.length) { %>
+                <div class="error-list">
+                    <% errors.forEach(error => { %>
+                        <div class="flash flash-error"><%= error %></div>
+                    <% }) %>
+                </div>
+            <% } %>
+
+            <form class="form-grid" action="/resources" method="POST" enctype="multipart/form-data">
+                <label class="form-group">
+                    <span class="form-label" data-i18n="resources.selectSubject">选择学科</span>
+                    <select name="board_id" class="form-control" required>
+                        <option value="" data-i18n="resources.selectSubject">选择学科</option>
+                        <% boards.forEach(board => { %>
+                            <option value="<%= board.id %>"><%= (locale === 'en' && board.name_en) ? board.name_en : board.name %></option>
+                        <% }) %>
+                    </select>
+                </label>
+
+                <label class="form-group">
+                    <span class="form-label" data-i18n="resources.resourceTitle">资源标题</span>
+                    <input class="form-control" type="text" name="title" data-i18n-placeholder="resources.titlePlaceholder" placeholder="" required>
+                </label>
+
+                <label class="form-group">
+                    <span class="form-label" data-i18n="resources.teacher">任课老师</span>
+                    <input class="form-control" type="text" name="teacher" data-i18n-placeholder="resources.teacherPlaceholder" placeholder="">
+                </label>
+
+                <label class="form-group">
+                    <span class="form-label" data-i18n="resources.description">资源描述</span>
+                    <textarea class="form-control" name="description" rows="5" data-i18n-placeholder="resources.descPlaceholder" placeholder=""></textarea>
+                </label>
+
+                <label class="form-group">
+                    <span class="form-label" data-i18n="resources.externalUrl">外部链接</span>
+                    <input class="form-control" type="url" name="external_url" data-i18n-placeholder="resources.urlPlaceholder" placeholder="">
+                </label>
+
+                <label class="form-group">
+                    <span class="form-label" data-i18n="resources.uploadFile">或上传文件</span>
+                    <input class="form-control" type="file" name="resourceFile" accept=".pdf,.ppt,.pptx,.doc,.docx,.png,.jpg,.jpeg">
+                </label>
+
+                <p class="helper-text" data-i18n="resources.uploadNote">普通用户上传后状态为 pending，管理员上传会直接发布。</p>
+
+                <div class="action-row">
+                    <button class="btn btn-primary" type="submit" data-i18n="resources.submitResource">提交资源</button>
+                    <a class="btn btn-ghost" href="/resources" data-i18n="common.cancel">取消</a>
+                </div>
+            </form>
+        </article>
+    </section>
+<%- include('partials/footer') %>

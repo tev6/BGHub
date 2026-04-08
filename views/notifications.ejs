@@ -1,0 +1,106 @@
+<%- include('partials/header') %>
+    <div class="notifications-page">
+        <div class="page-header">
+            <h1 data-i18n="notifications.title">通知中心</h1>
+            <button class="btn btn-primary" type="button" id="mark-all-read" data-i18n="notifications.markAllRead">全部标为已读</button>
+        </div>
+
+        <div class="filter-tabs">
+            <a href="/notifications?type=all" class="tab <%= currentType === 'all' ? 'is-active' : '' %>" data-i18n="notifications.filterAll">全部</a>
+            <a href="/notifications?type=unread" class="tab <%= currentType === 'unread' ? 'is-active' : '' %>" data-i18n="notifications.filterUnread">未读</a>
+            <a href="/notifications?type=review" class="tab <%= currentType === 'review' ? 'is-active' : '' %>" data-i18n="notifications.filterReview">审核</a>
+            <a href="/notifications?type=system" class="tab <%= currentType === 'system' ? 'is-active' : '' %>" data-i18n="notifications.filterSystem">系统</a>
+            <a href="/notifications?type=interaction" class="tab <%= currentType === 'interaction' ? 'is-active' : '' %>" data-i18n="notifications.filterInteraction">互动</a>
+        </div>
+
+        <div class="notifications-list">
+            <% if (notifications.length) { %>
+                <% notifications.forEach(notification => { %>
+                    <div class="notification-item <%= notification.is_read ? '' : 'is-unread' %>" data-id="<%= notification.id %>">
+                        <div class="notification-icon">
+                            <% if (notification.notification_type === 'review') { %>
+                                <span>📋</span>
+                            <% } else if (notification.notification_type === 'interaction') { %>
+                                <span>💬</span>
+                            <% } else { %>
+                                <span>🔔</span>
+                            <% } %>
+                        </div>
+                        <div class="notification-body">
+                            <div class="notification-head">
+                                <strong><%= notification.title %></strong>
+                                <span class="notification-time"><%= formatDate(notification.created_at, true) %></span>
+                            </div>
+                            <p><%= notification.content %></p>
+                        </div>
+                        <div class="notification-actions">
+                            <% if (!notification.is_read) { %>
+                                <button class="btn btn-ghost btn-sm mark-read" type="button">标为已读</button>
+                            <% } %>
+                        </div>
+                    </div>
+                <% }) %>
+            <% } else { %>
+                <div class="empty-state">
+                    暂无通知
+                </div>
+            <% } %>
+        </div>
+
+        <% if (pagination.totalPages > 1) { %>
+            <div class="pagination">
+                <% if (pagination.page > 1) { %>
+                    <a href="/notifications?page=<%= pagination.page - 1 %>&type=<%= currentType %>" class="btn btn-ghost" data-i18n="common.prevPage">上一页</a>
+                <% } %>
+                <span class="page-info"><span data-i18n="common.pageOf">第 <%= pagination.page %> / <%= pagination.totalPages %> 页</span></span>
+                <% if (pagination.page < pagination.totalPages) { %>
+                    <a href="/notifications?page=<%= pagination.page + 1 %>&type=<%= currentType %>" class="btn btn-ghost" data-i18n="common.nextPage">下一页</a>
+                <% } %>
+            </div>
+        <% } %>
+    </div>
+
+    <script>
+    (function() {
+        document.querySelectorAll('.mark-read').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var id = this.closest('.notification-item').dataset.id;
+                fetch('/api/notifications/' + id + '/read', { method: 'POST' })
+                    .then(function(res) { return res.json(); })
+                    .then(function() {
+                        var item = document.querySelector('.notification-item[data-id="' + id + '"]');
+                        if (item) {
+                            item.classList.remove('is-unread');
+                            item.querySelector('.mark-read') && item.querySelector('.mark-read').remove();
+                        }
+                        updateUnreadCount();
+                    });
+            });
+        });
+
+        document.getElementById('mark-all-read').addEventListener('click', function() {
+            fetch('/api/notifications/read-all', { method: 'POST' })
+                .then(function(res) { return res.json(); })
+                .then(function() {
+                    document.querySelectorAll('.notification-item.is-unread').forEach(function(item) {
+                        item.classList.remove('is-unread');
+                        item.querySelector('.mark-read') && item.querySelector('.mark-read').remove();
+                    });
+                    updateUnreadCount();
+                });
+        });
+
+        function updateUnreadCount() {
+            fetch('/api/notifications/unread-count')
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    var badge = document.querySelector('.notification-badge');
+                    if (badge) {
+                        badge.textContent = data.count;
+                        badge.style.display = data.count > 0 ? 'inline-flex' : 'none';
+                    }
+                });
+        }
+    })();
+    </script>
+<%- include('partials/footer') %>

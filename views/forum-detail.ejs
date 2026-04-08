@@ -1,0 +1,90 @@
+<%- include('partials/header') %>
+    <section class="page-title">
+        <span class="eyebrow">Forum Detail</span>
+        <h1><%= post.title %></h1>
+        <p><%= post.board_name %> · <%= post.post_type %> · <%= post.is_anonymous ? '匿名同学' : post.author_name %></p>
+    </section>
+
+    <section class="layout-grid">
+        <div class="content-stack">
+            <article class="card detail-card">
+                <div class="tag-row">
+                    <span class="tag"><%= post.board_name %></span>
+                    <span class="tag"><%= post.post_type %></span>
+                </div>
+                <div class="meta-row">
+                    <span><%= post.author_name %></span>
+                    <span><%= formatDate(post.created_at, true) %></span>
+                    <span><%= post.view_count %> 次浏览</span>
+                </div>
+                <div class="markdown-body">
+                    <%- renderMarkdown(post.content) %>
+                </div>
+
+                <% if (user && (user.id === post.user_id || isStaff(user))) { %>
+                    <div class="forum-actions">
+                        <a href="/forum/<%= post.id %>/edit" class="btn btn-ghost">编辑帖子</a>
+                        <form action="/forum/<%= post.id %>/delete" method="POST" data-confirm="确认删除该帖子吗？">
+                            <button class="btn btn-danger" type="submit" data-i18n="common.delete">删除帖子</button>
+                        </form>
+                    </div>
+                <% } %>
+            </article>
+
+            <article class="card detail-card">
+                <div class="panel-head">
+                    <h2>回复区</h2>
+                    <span><%= comments.length %> 条回复</span>
+                </div>
+
+                <% if (comments.length) { %>
+                    <div class="comment-list">
+                        <% comments.forEach(comment => { %>
+                            <div class="list-item">
+                                <div class="list-item-top">
+                                    <strong><%= comment.author_name %></strong>
+                                    <div class="tag-row">
+                                        <span class="helper-text"><%= formatDate(comment.created_at, true) %></span>
+                                    </div>
+                                </div>
+                                <div class="comment-content markdown-body">
+                                    <%- renderMarkdown(comment.content) %>
+                                </div>
+                            </div>
+                        <% }) %>
+                    </div>
+                <% } else { %>
+                    <div class="empty-state">还没有回复，欢迎补充你的解法或资料。</div>
+                <% } %>
+            </article>
+
+            <% if (user) { %>
+                <article class="card detail-card">
+                    <h2 data-i18n="forum.postReply">发布回复</h2>
+                    <form class="form-grid" action="/forum/<%= post.id %>/comments" method="POST">
+                        <textarea class="form-control" name="content" rows="6" placeholder="用 Markdown 回复问题或补充笔记" required></textarea>
+                        <button class="btn btn-primary" type="submit" data-i18n="forum.submitReply">提交回复</button>
+                    </form>
+                </article>
+            <% } else { %>
+                <div class="empty-state">登录后可参与讨论与回答问题。</div>
+            <% } %>
+        </div>
+
+        <aside class="sidebar-stack">
+            <article class="card section-card">
+                <h3>帖子信息</h3>
+                <div class="key-value-list">
+                    <div class="key-value-item"><span data-i18n="common.author">作者</span><span><%= post.is_anonymous ? '匿名同学' : post.author_name %></span></div>
+                    <div class="key-value-item"><span data-i18n="common.subject">学科</span><span><%= post.board_name %></span></div>
+                    <div class="key-value-item"><span data-i18n="common.type">类型</span><span><%= post.post_type %></span></div>
+                    <div class="key-value-item"><span data-i18n="common.publishTime">发布时间</span><span><%= formatDate(post.created_at, true) %></span></div>
+                </div>
+                <% if (user && user.id !== post.user_id) { %>
+                    <button class="btn btn-ghost btn-sm" type="button" onclick="showReportModal('post', <%= post.id %>)" title="举报该帖子">🚩 <span data-i18n="common.report">举报</span></button>
+                <% } %>
+            </article>
+        </aside>
+    </section>
+<%- include('report-modal') %>
+<%- include('partials/footer') %>

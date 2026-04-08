@@ -1,0 +1,474 @@
+<%- include('partials/header') %>
+    <section class="page-title">
+        <span class="eyebrow" data-i18n="settings.eyebrow">Account</span>
+        <h1 data-i18n="settings.title">用户设置</h1>
+    </section>
+
+    <section class="layout-grid">
+        <div class="content-stack">
+            <article class="card section-card">
+                <h3 data-i18n="settings.accountInfo">账户信息</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label" data-i18n="settings.email">邮箱</span>
+                        <span class="info-value"><%= user.email %></span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label" data-i18n="settings.name">昵称</span>
+                        <span class="info-value"><%= user.name %></span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label" data-i18n="settings.grade">年级</span>
+                        <span class="info-value"><%= user.grade %></span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label" data-i18n="settings.registeredAt">注册时间</span>
+                        <span class="info-value"><%= formatDate(user.created_at, true) %></span>
+                    </div>
+                </div>
+            </article>
+
+            <article class="card section-card">
+                <h3 data-i18n="settings.levelInfo">等级信息</h3>
+                <div class="level-display">
+                    <div class="level-badge" style="background: <%= roleInfo ? roleInfo.badge_color : '#666' %>">
+                        <%= roleInfo ? roleInfo.name : 'LV' + user.role_level %>
+                    </div>
+                    <div class="level-name">
+                        <%= roleInfo ? roleInfo.name : 'Unknown' %>
+                    </div>
+                </div>
+                <div class="credit-display">
+                    <div class="credit-item">
+                        <span class="credit-value"><%= credit ? credit.credit : 0 %></span>
+                        <span class="credit-label" data-i18n="settings.credit">积分</span>
+                    </div>
+                </div>
+                <% if (nextLevel && nextLevel.min_credit > 0) { %>
+                    <% const currentCredit = credit ? credit.credit : 0; %>
+                    <% const progress = Math.min(100, Math.round((currentCredit / nextLevel.min_credit) * 100)); %>
+                    <% const needed = nextLevel.min_credit - currentCredit; %>
+                    <div class="upgrade-progress">
+                        <div class="progress-header">
+                            <span data-i18n="settings.nextLevel">距升级至</span>
+                            <strong><%= nextLevel.name %></strong>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: <%= progress %>%"></div>
+                        </div>
+                        <div class="progress-footer">
+                            <span><%= currentCredit %> / <%= nextLevel.min_credit %></span>
+                            <span data-i18n="settings.creditsNeeded"><%= needed %> 积分</span>
+                        </div>
+                    </div>
+                <% } else if (user.role_level >= 5) { %>
+                    <div class="max-level-notice">
+                        <span data-i18n="settings.maxLevel">已达到最高等级</span>
+                    </div>
+                <% } %>
+            </article>
+
+            <article class="card section-card">
+                <h3 data-i18n="settings.currentPermissions">当前权限</h3>
+                <ul class="permissions-list">
+                    <li><span class="permission-check">✓</span><span data-i18n="settings.permChat">在年级群发言</span></li>
+                    <% if (user.role_level >= 2) { %>
+                        <li><span class="permission-check">✓</span><span data-i18n="settings.permPost">发布文章/笔记</span></li>
+                    <% } else { %>
+                        <li><span class="permission-lock">🔒</span><span data-i18n="settings.permPostLocked">发布文章/笔记（需 LV2）</span></li>
+                    <% } %>
+                    <% if (user.role_level >= 3) { %>
+                        <li><span class="permission-check">✓</span><span data-i18n="settings.permResource">上传资源</span></li>
+                    <% } else { %>
+                        <li><span class="permission-lock">🔒</span><span data-i18n="settings.permResourceLocked">上传资源（需 LV3）</span></li>
+                    <% } %>
+                    <% if (user.role_level >= 4) { %>
+                        <li><span class="permission-check">✓</span><span data-i18n="settings.permCJ">维护 CJ 内容</span></li>
+                    <% } else { %>
+                        <li><span class="permission-lock">🔒</span><span data-i18n="settings.permCJLocked">维护 CJ 内容（需 LV4）</span></li>
+                    <% } %>
+                    <% if (user.role_level >= 3) { %>
+                        <li><span class="permission-check">✓</span><span data-i18n="settings.permReview">参与内容审核</span></li>
+                    <% } else { %>
+                        <li><span class="permission-lock">🔒</span><span data-i18n="settings.permReviewLocked">参与内容审核（需 LV3）</span></li>
+                    <% } %>
+                </ul>
+            </article>
+
+            <article class="card section-card">
+                <h3 data-i18n="settings.levelProgression">等级权限说明</h3>
+                <div class="level-grid">
+                    <% allRoles.forEach(role => { %>
+                        <div class="level-item <%= role.level === user.role_level ? 'current' : '' %>">
+                            <div class="level-header">
+                                <span class="level-badge-small" style="background: <%= role.badge_color %>"><%= role.name %></span>
+                                <span class="level-requirement"><%= role.min_credit %> <span data-i18n="settings.credits">积分</span></span>
+                            </div>
+                            <ul class="level-permissions">
+                                <% if (role.level === 0) { %>
+                                    <li data-i18n="settings.lv0Perms">浏览、发言（审核）、受限功能</li>
+                                <% } else if (role.level === 1) { %>
+                                    <li data-i18n="settings.lv1Perms">连续发言、快速审核</li>
+                                <% } else if (role.level === 2) { %>
+                                    <li data-i18n="settings.lv2Perms">发布文章/笔记</li>
+                                <% } else if (role.level === 3) { %>
+                                    <li data-i18n="settings.lv3Perms">上传资源、参与审核</li>
+                                <% } else if (role.level === 4) { %>
+                                    <li data-i18n="settings.lv4Perms">维护 CJ 内容</li>
+                                <% } else if (role.level === 5) { %>
+                                    <li data-i18n="settings.lv5Perms">高级权限</li>
+                                <% } %>
+                            </ul>
+                        </div>
+                    <% }) %>
+                </div>
+            </article>
+
+            <article class="card section-card">
+                <h3 data-i18n="settings.creditHistory">积分历史</h3>
+                <% if (creditHistory && creditHistory.length) { %>
+                    <div class="history-list">
+                        <% creditHistory.forEach(log => { %>
+                            <div class="history-item">
+                                <div class="history-main">
+                                    <span class="history-delta <%= log.delta > 0 ? 'positive' : 'negative' %>">
+                                        <%= log.delta > 0 ? '+' : '' %><%= log.delta %>
+                                    </span>
+                                    <span class="history-reason"><%= log.reason %></span>
+                                </div>
+                                <div class="history-meta">
+                                    <span class="history-date"><%= formatDate(log.created_at, true) %></span>
+                                    <% if (log.reviewer_name) { %>
+                                        <span class="history-reviewer">by <%= log.reviewer_name %></span>
+                                    <% } %>
+                                </div>
+                            </div>
+                        <% }) %>
+                    </div>
+                <% } else { %>
+                    <div class="empty-state" data-i18n="settings.noHistory">暂无积分记录</div>
+                <% } %>
+            </article>
+
+            <article class="card section-card danger-zone">
+                <h3 data-i18n="settings.dangerZone">危险区域</h3>
+                <p class="helper-text" data-i18n="settings.deactivateWarning">注销账户后，所有数据将被永久删除且无法恢复。</p>
+                <button class="btn btn-danger" type="button" onclick="showDeactivateModal()" data-i18n="settings.deactivateAccount">注销账户</button>
+            </article>
+        </div>
+    </section>
+
+    <div class="modal modal-hidden" id="deactivate-modal">
+        <div class="modal-backdrop" onclick="hideDeactivateModal()"></div>
+        <div class="modal-content">
+            <h3 data-i18n="settings.confirmDeactivate">确认注销账户</h3>
+            <p data-i18n="settings.deactivatePrompt">请输入密码以确认注销账户。</p>
+            <form id="deactivate-form">
+                <input class="form-control" type="password" name="password" data-i18n-placeholder="settings.passwordPlaceholder" placeholder="" required>
+                <div class="modal-actions">
+                    <button class="btn btn-ghost" type="button" onclick="hideDeactivateModal()" data-i18n="common.cancel">取消</button>
+                    <button class="btn btn-danger" type="submit" data-i18n="settings.confirmDeactivateBtn">确认注销</button>
+                </div>
+            </form>
+            <div class="modal-error modal-hidden" id="deactivate-error"></div>
+        </div>
+    </div>
+
+    <script>
+    function showDeactivateModal() {
+        document.getElementById('deactivate-modal').classList.remove('modal-hidden');
+    }
+
+    function hideDeactivateModal() {
+        document.getElementById('deactivate-modal').classList.add('modal-hidden');
+        document.getElementById('deactivate-error').classList.add('modal-hidden');
+        document.getElementById('deactivate-form').reset();
+    }
+
+    document.getElementById('deactivate-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const errorEl = document.getElementById('deactivate-error');
+
+        try {
+            const response = await fetch('/api/settings/deactivate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: formData.get('password') })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                errorEl.textContent = data.error || '操作失败';
+                errorEl.classList.remove('modal-hidden');
+                return;
+            }
+
+            window.location.href = '/';
+        } catch (err) {
+            errorEl.textContent = err.message;
+            errorEl.classList.remove('modal-hidden');
+        }
+    });
+    </script>
+
+    <style>
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+    .info-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    .info-label {
+        font-size: 0.75rem;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .info-value {
+        font-size: 1rem;
+        color: var(--foreground);
+    }
+    .level-display {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    .level-badge {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: white;
+    }
+    .level-name {
+        font-size: 1.25rem;
+        font-weight: 600;
+    }
+    .credit-display {
+        display: flex;
+        gap: 2rem;
+    }
+    .credit-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    .credit-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--primary);
+    }
+    .credit-label {
+        font-size: 0.875rem;
+        color: var(--muted);
+    }
+    .upgrade-progress {
+        margin-top: 1.5rem;
+        padding: 1rem;
+        background: var(--surface-hover);
+        border-radius: 0.5rem;
+    }
+    .progress-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+        font-size: 0.875rem;
+    }
+    .progress-bar {
+        height: 8px;
+        background: var(--line);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    .progress-fill {
+        height: 100%;
+        background: var(--primary);
+        transition: width 0.3s ease;
+    }
+    .progress-footer {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 0.5rem;
+        font-size: 0.75rem;
+        color: var(--muted);
+    }
+    .max-level-notice {
+        margin-top: 1rem;
+        padding: 0.75rem;
+        background: rgba(245, 158, 11, 0.1);
+        border-radius: 0.5rem;
+        color: var(--warning);
+        text-align: center;
+        font-weight: 600;
+    }
+    .permissions-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    .permissions-list li {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+    }
+    .permission-check {
+        color: var(--success);
+        font-weight: 700;
+    }
+    .permission-lock {
+        opacity: 0.5;
+    }
+    .level-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    .level-item {
+        padding: 0.75rem;
+        background: var(--surface-hover);
+        border-radius: 0.5rem;
+        border: 2px solid transparent;
+    }
+    .level-item.current {
+        border-color: var(--primary);
+        background: rgba(59, 130, 246, 0.05);
+    }
+    .level-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+    .level-badge-small {
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: white;
+    }
+    .level-requirement {
+        font-size: 0.75rem;
+        color: var(--muted);
+    }
+    .level-permissions {
+        margin: 0;
+        padding-left: 1rem;
+        font-size: 0.75rem;
+        color: var(--text);
+    }
+    .level-permissions li {
+        margin-bottom: 0.25rem;
+    }
+    .history-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    .history-item {
+        padding: 0.75rem;
+        background: var(--surface-hover);
+        border-radius: 0.5rem;
+    }
+    .history-main {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    .history-delta {
+        font-weight: 700;
+        font-size: 1.125rem;
+    }
+    .history-delta.positive {
+        color: var(--success);
+    }
+    .history-delta.negative {
+        color: var(--danger);
+    }
+    .history-reason {
+        color: var(--foreground);
+    }
+    .history-meta {
+        display: flex;
+        gap: 1rem;
+        margin-top: 0.25rem;
+        font-size: 0.75rem;
+        color: var(--muted);
+    }
+    .danger-zone {
+        border-color: var(--danger);
+    }
+    .danger-zone h3 {
+        color: var(--danger);
+    }
+    .btn-danger {
+        background: var(--danger);
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        cursor: pointer;
+    }
+    .btn-danger:hover {
+        opacity: 0.9;
+    }
+    .modal {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .modal.modal-hidden {
+        display: none;
+    }
+    .modal-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+    }
+    .modal-content {
+        position: relative;
+        background: var(--background);
+        padding: 1.5rem;
+        border-radius: 0.75rem;
+        max-width: 400px;
+        width: 90%;
+    }
+    .modal-actions {
+        display: flex;
+        gap: 0.75rem;
+        justify-content: flex-end;
+        margin-top: 1rem;
+    }
+    .modal-error {
+        margin-top: 0.75rem;
+        padding: 0.75rem;
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid var(--danger);
+        border-radius: 0.375rem;
+        color: var(--danger);
+        font-size: 0.875rem;
+    }
+    .modal-error.modal-hidden {
+        display: none;
+    }
+    </style>
+<%- include('partials/footer') %>

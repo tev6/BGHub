@@ -1,0 +1,89 @@
+<div class="modal modal-hidden" id="report-modal">
+    <div class="modal-backdrop" onclick="hideReportModal()"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 data-i18n="report.title">举报内容</h3>
+            <button class="btn btn-ghost" type="button" onclick="hideReportModal()" data-i18n="common.close">关闭</button>
+        </div>
+        <form id="report-form" data-report-form>
+            <input type="hidden" name="target_type" data-report-target-type value="">
+            <input type="hidden" name="target_id" data-report-target-id value="">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" data-i18n="report.reason">举报原因</label>
+                    <select class="form-control" name="reason" required>
+                        <option value="" data-i18n="report.selectReason">请选择原因</option>
+                        <option value="spam" data-i18n="report.reasonSpam">垃圾广告</option>
+                        <option value="inappropriate" data-i18n="report.reasonInappropriate">不适当内容</option>
+                        <option value="harassment" data-i18n="report.reasonHarassment">人身攻击/骚扰</option>
+                        <option value="other" data-i18n="report.reasonOther">其他</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" data-i18n="report.description">补充说明</label>
+                    <textarea class="form-control" name="description" rows="4" placeholder="请详细描述问题（选填）" data-i18n-placeholder="report.descriptionPlaceholder"></textarea>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-ghost" type="button" onclick="hideReportModal()" data-i18n="common.cancel">取消</button>
+                <button class="btn btn-primary" type="submit" data-i18n="report.submit">提交举报</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function() {
+    var reportModal = document.getElementById('report-modal');
+    var reportForm = document.getElementById('report-form');
+
+    window.showReportModal = function(targetType, targetId) {
+        var targetTypeInput = reportForm.querySelector('[data-report-target-type]');
+        var targetIdInput = reportForm.querySelector('[data-report-target-id]');
+        if (targetTypeInput) targetTypeInput.value = targetType;
+        if (targetIdInput) targetIdInput.value = targetId;
+        reportModal.classList.remove('modal-hidden');
+    };
+
+    window.hideReportModal = function() {
+        reportModal.classList.add('modal-hidden');
+        reportForm.reset();
+    };
+
+    if (reportForm) {
+        reportForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var formData = new FormData(reportForm);
+            var data = {
+                target_type: formData.get('target_type'),
+                target_id: parseInt(formData.get('target_id'), 10),
+                reason: formData.get('reason'),
+                description: formData.get('description') || ''
+            };
+
+            fetch('/api/reports', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(result) {
+                if (result.error) {
+                    alert(result.error);
+                } else {
+                    hideReportModal();
+                    if (typeof showToast === 'function') {
+                        showToast('举报已提交，感谢反馈', 'success');
+                    } else {
+                        alert('举报已提交，感谢反馈');
+                    }
+                }
+            })
+            .catch(function(err) {
+                console.error('Report error:', err);
+                alert('提交失败，请稍后重试');
+            });
+        });
+    }
+})();
+</script>

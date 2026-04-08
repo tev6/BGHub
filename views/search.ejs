@@ -1,0 +1,100 @@
+<%- include('partials/header') %>
+    <section class="page-title">
+        <span class="eyebrow" data-i18n="search.eyebrow">Global Search</span>
+        <h1 data-i18n="search.title">搜索结果</h1>
+        <p><span data-i18n="search.keyword">关键词</span>: <%= term || '' %><% if (!term) { %><span data-i18n="search.notEntered">(未输入)</span><% } %></p>
+    </section>
+
+    <% if (!results) { %>
+        <div class="empty-state" data-i18n="search.enterKeyword">请输入关键词后再搜索。</div>
+    <% } else { %>
+        <section class="split-grid">
+            <article class="card section-card">
+                <h2 data-i18n="search.forumPosts">论坛帖子</h2>
+                <% if (results.posts.length) { %>
+                    <div class="stack-list">
+                        <% results.posts.forEach(post => { %>
+                            <a class="list-item" href="/forum/<%= post.id %>">
+                                <strong><%= post.title %></strong>
+                                <div class="meta-row">
+                                    <span><%= post.board_name %></span>
+                                    <span><%= post.post_type %></span>
+                                </div>
+                            </a>
+                        <% }) %>
+                    </div>
+                <% } else { %>
+                    <div class="empty-state" data-i18n="search.noPosts">没有匹配帖子。</div>
+                <% } %>
+            </article>
+
+            <article class="card section-card">
+                <h2 data-i18n="search.resources">资源</h2>
+                <% if (results.resources.length) { %>
+                    <div class="stack-list">
+                        <% results.resources.forEach(resource => { %>
+                            <a class="list-item" href="/resources">
+                                <strong><%= resource.title %></strong>
+                                <div class="meta-row">
+                                    <span><%= resource.board_name %></span>
+                                    <span><%= resource.status %></span>
+                                </div>
+                            </a>
+                        <% }) %>
+                    </div>
+                <% } else { %>
+                    <div class="empty-state" data-i18n="search.noResources">没有匹配资源。</div>
+                <% } %>
+            </article>
+
+            <article class="card section-card">
+                <h2 data-i18n="search.exams">考试</h2>
+                <% if (results.exams.length) { %>
+                    <div class="stack-list">
+                        <% results.exams.forEach(exam => { %>
+                            <a class="list-item" href="/exams">
+                                <strong><%= exam.title %></strong>
+                                <div class="meta-row">
+                                    <span><%= exam.board_name %></span>
+                                    <span><%= formatDate(exam.exam_date, true) %></span>
+                                </div>
+                            </a>
+                        <% }) %>
+                    </div>
+                <% } else { %>
+                    <div class="empty-state" data-i18n="search.noExams">没有匹配考试。</div>
+                <% } %>
+            </article>
+
+            <article class="card section-card">
+                <h2 data-i18n="search.homeworksCJ">作业 / CJ</h2>
+                <div class="stack-list">
+                    <% if (results.homeworks.length) { %>
+                        <% results.homeworks.forEach(homework => { %>
+                            <a class="list-item" href="/homeworks">
+                                <strong><%= homework.title %></strong>
+                                <div class="meta-row">
+                                    <span><%= homework.board_name %></span>
+                                    <span><%= formatDate(homework.deadline, true) %></span>
+                                </div>
+                            </a>
+                        <% }) %>
+                    <% } %>
+                    <% if (results.sections.length) { %>
+                        <% results.sections.forEach(section => { %>
+                            <a class="list-item" href="/boards/<%= section.slug %>">
+                                <strong><%= section.name %> · <%= section.title %></strong>
+                                <div class="meta-row">
+                                    <span><%= section.section %></span>
+                                </div>
+                            </a>
+                        <% }) %>
+                    <% } %>
+                    <% if (!results.homeworks.length && !results.sections.length) { %>
+                        <div class="empty-state" data-i18n="search.noHomeworks">没有匹配作业或 CJ 内容。</div>
+                    <% } %>
+                </div>
+            </article>
+        </section>
+    <% } %>
+<%- include('partials/footer') %>

@@ -1,0 +1,39 @@
+    </main>
+    <footer class="site-footer">
+        <div class="footer-shell">
+            <div>
+                <p class="footer-title" data-i18n="footer.title">BG Hub</p>
+                <p class="footer-copy" data-i18n="footer.description">面向贝赛思学生的考试、作业、资源与互助一体化学习社区。</p>
+            </div>
+            <div class="footer-meta">
+                <span>&copy; <%= new Date().getFullYear() %> BG Hub</span>
+                <span>Node.js + Express + SQLite</span>
+            </div>
+        </div>
+
+        <% if (typeof homeStats !== 'undefined' && homeStats) { %>
+            <div class="footer-stats">
+                <div class="footer-stats-grid">
+                    <div class="footer-stat card">
+                        <span data-i18n="footer.exams">考试提醒</span>
+                        <strong><%= homeStats.exams %></strong>
+                    </div>
+                    <div class="footer-stat card">
+                        <span data-i18n="footer.homeworks">作业条目</span>
+                        <strong><%= homeStats.homeworks %></strong>
+                    </div>
+                    <div class="footer-stat card">
+                        <span data-i18n="footer.resources">共享资源</span>
+                        <strong><%= homeStats.resources %></strong>
+                    </div>
+                    <div class="footer-stat card">
+                        <span data-i18n="footer.posts">论坛帖子</span>
+                        <strong><%= homeStats.posts %></strong>
+                    </div>
+                </div>
+            </div>
+        <% } %>
+    </footer>
+    <script src="/js/app.js"></script>
+</body>
+</html>

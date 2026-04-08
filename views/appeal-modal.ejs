@@ -1,0 +1,79 @@
+<div class="modal modal-hidden" id="appeal-modal">
+    <div class="modal-backdrop" onclick="hideAppealModal()"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 data-i18n="appeal.title">申诉内容</h3>
+            <button class="btn btn-ghost" type="button" onclick="hideAppealModal()" data-i18n="common.close">关闭</button>
+        </div>
+        <form id="appeal-form" data-appeal-form>
+            <input type="hidden" name="content_type" data-appeal-content-type value="">
+            <input type="hidden" name="content_id" data-appeal-content-id value="">
+            <div class="modal-body">
+                <p class="helper-text" data-i18n="appeal.prompt">如果您的内容被错误审核，欢迎提交申诉。</p>
+                <div class="form-group">
+                    <label class="form-label" data-i18n="appeal.reason">申诉原因</label>
+                    <textarea class="form-control" name="reason" rows="4" required placeholder="请详细说明申诉理由" data-i18n-placeholder="appeal.reasonPlaceholder"></textarea>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-ghost" type="button" onclick="hideAppealModal()" data-i18n="common.cancel">取消</button>
+                <button class="btn btn-primary" type="submit" data-i18n="appeal.submit">提交申诉</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function() {
+    var appealModal = document.getElementById('appeal-modal');
+    var appealForm = document.getElementById('appeal-form');
+
+    window.showAppealModal = function(contentType, contentId) {
+        var contentTypeInput = appealForm.querySelector('[data-appeal-content-type]');
+        var contentIdInput = appealForm.querySelector('[data-appeal-content-id]');
+        if (contentTypeInput) contentTypeInput.value = contentType;
+        if (contentIdInput) contentIdInput.value = contentId;
+        appealModal.classList.remove('modal-hidden');
+    };
+
+    window.hideAppealModal = function() {
+        appealModal.classList.add('modal-hidden');
+        appealForm.reset();
+    };
+
+    if (appealForm) {
+        appealForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var formData = new FormData(appealForm);
+            var data = {
+                content_type: formData.get('content_type'),
+                content_id: parseInt(formData.get('content_id'), 10),
+                reason: formData.get('reason')
+            };
+
+            fetch('/api/appeals', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(result) {
+                if (result.error) {
+                    alert(result.error);
+                } else {
+                    hideAppealModal();
+                    if (typeof showToast === 'function') {
+                        showToast('申诉已提交', 'success');
+                    } else {
+                        alert('申诉已提交');
+                    }
+                }
+            })
+            .catch(function(err) {
+                console.error('Appeal error:', err);
+                alert('提交失败，请稍后重试');
+            });
+        });
+    }
+})();
+</script>

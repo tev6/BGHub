@@ -1,0 +1,65 @@
+<%- include('partials/header') %>
+    <section class="page-title">
+        <span class="eyebrow" data-i18n="nav.subtitle">Help Forum</span>
+        <h1 data-i18n="forum.title">互助广场</h1>
+        <p data-i18n="forum.description">按学科筛选问题、笔记与资源分享，支持匿名提问、回复与已解决状态。</p>
+    </section>
+
+    <section class="filters-shell card section-card">
+        <form class="filter-form" action="/forum" method="GET">
+            <input class="form-control" type="search" name="q" placeholder="" data-i18n-placeholder="forum.filterPlaceholder" value="<%= filters.q %>">
+            <select class="form-control" name="subject">
+                <option value="" data-i18n="forum.allSubjects">全部学科</option>
+                <% boards.forEach(board => { %>
+                    <option value="<%= board.slug %>" <%= filters.subject === board.slug ? 'selected' : '' %>><%= board.name %></option>
+                <% }) %>
+            </select>
+            <select class="form-control" name="type">
+                <option value="" data-i18n="forum.allTypes">全部类型</option>
+                <option value="question" <%= filters.type === 'question' ? 'selected' : '' %> data-i18n="forum.typeQuestion">问题</option>
+                <option value="note" <%= filters.type === 'note' ? 'selected' : '' %> data-i18n="forum.typeNote">笔记</option>
+                <option value="share" <%= filters.type === 'share' ? 'selected' : '' %> data-i18n="forum.typeShare">分享</option>
+            </select>
+            <select class="form-control" name="sort">
+                <option value="latest" <%= filters.sort === 'latest' ? 'selected' : '' %> data-i18n="forum.sortLatest">最新</option>
+                <option value="hot" <%= filters.sort === 'hot' ? 'selected' : '' %> data-i18n="forum.sortHot">最热</option>
+            </select>
+            <button class="btn btn-primary" type="submit" data-i18n="common.filter">筛选</button>
+            <% if (user) { %>
+                <a href="/forum/new" class="btn btn-ghost" data-tooltip="分享你的问题或笔记，帮助他人也进步" data-i18n="forum.publishPost">发布帖子</a>
+            <% } %>
+        </form>
+    </section>
+
+    <section class="forum-list">
+        <% if (posts.length) { %>
+            <% posts.forEach(post => { %>
+                <article class="card forum-card">
+                    <div class="panel-head panel-head--compact">
+                        <div class="tag-row">
+                            <span class="tag"><%= post.board_name %></span>
+                            <span class="tag"><%= post.post_type %></span>
+                            <% if (post.is_resolved) { %>
+                                <span class="status-badge status-approved" data-i18n="forum.resolved">已解决</span>
+                            <% } %>
+                        </div>
+                        <span class="helper-text"><%= formatDate(post.created_at, true) %></span>
+                    </div>
+                    <h3><a href="/forum/<%= post.id %>"><%= post.title %></a></h3>
+                    <p class="forum-content"><%= excerpt(post.content, 160) %></p>
+                    <div class="meta-row">
+                        <% if (post.is_anonymous) { %>
+                                <span data-i18n="forum.anonymous">匿名同学</span>
+                            <% } else { %>
+                                <span><%= post.author_name %></span>
+                            <% } %>
+                        <span><%= post.comment_count %> <span data-i18n="forum.replies">条回复</span></span>
+                        <span><%= post.view_count %> <span data-i18n="forum.views">次浏览</span></span>
+                    </div>
+                </article>
+            <% }) %>
+        <% } else { %>
+            <div class="empty-state" data-i18n="forum.noPosts">没有符合条件的帖子，试试调整筛选条件或发布新问题。</div>
+        <% } %>
+    </section>
+<%- include('partials/footer') %>

@@ -1,0 +1,42 @@
+<%- include('partials/header') %>
+    <section class="page-title">
+        <span class="eyebrow">CJ Board</span>
+        <h1><%= (locale === 'en' && detail.board.name_en) ? detail.board.name_en : detail.board.name %> CJ</h1>
+        <p><%= detail.board.description %></p>
+    </section>
+
+    <section class="cj-date-selector card">
+        <div class="date-nav-row">
+            <a href="/boards/<%= detail.board.slug %>?date=<%= dateNavData.prevDate %>" class="btn btn-ghost date-nav-btn">
+                <span>‹</span>
+            </a>
+            <span class="date-nav-current">
+                <%= dateNavData.display %>
+            </span>
+            <a href="/boards/<%= detail.board.slug %>?date=<%= dateNavData.nextDate %>" class="btn btn-ghost date-nav-btn <%= dateNavData.isFuture ? 'disabled' : '' %>" <%= dateNavData.isFuture ? 'aria-disabled="true"' : '' %>>
+                <span>›</span>
+            </a>
+        </div>
+    </section>
+
+    <section class="cj-content">
+        <div class="content-stack">
+            <% ['IC', 'HW', 'A'].forEach(sectionKey => { %>
+                <article class="card section-card">
+                    <div class="panel-head">
+                        <div>
+                            <span class="eyebrow" data-i18n="board.<%= sectionKey.toLowerCase() %>"><%= locale === 'en' ? sectionTitlesEn[sectionKey] : sectionTitles[sectionKey] %></span>
+                            <h2><%= detail.sections[sectionKey] ? ((locale === 'en' && detail.sections[sectionKey].title_en) ? detail.sections[sectionKey].title_en : detail.sections[sectionKey].title) : (locale === 'en' ? sectionTitlesEn[sectionKey] : sectionTitles[sectionKey]) %></h2>
+                        </div>
+                        <% if (detail.sections[sectionKey] && detail.sections[sectionKey].updated_at) { %>
+                            <span class="helper-text" data-i18n="board.lastUpdated"><%= locale === 'en' ? 'Updated at' : '更新于' %></span> <%= formatDate(detail.sections[sectionKey].updated_at, true) %>
+                        <% } %>
+                    </div>
+                    <div class="section-markdown">
+                        <%- renderMarkdown(detail.sections[sectionKey] ? detail.sections[sectionKey].content : '') || '<p class="empty-state" data-i18n="board.notFilled">' + (locale === 'en' ? 'Not yet filled' : '暂未填写') + '</p>' %>
+                    </div>
+                </article>
+            <% }) %>
+        </div>
+    </section>
+<%- include('partials/footer') %>

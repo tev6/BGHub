@@ -1,0 +1,116 @@
+<%- include('partials/header') %>
+    <section class="auth-shell">
+        <article class="card auth-card">
+            <span class="eyebrow">创建账号</span>
+            <h1 data-i18n="auth.registerTitle">加入 BG Hub</h1>
+            <p class="helper-text">首个注册用户将自动成为管理员，便于继续推进校园论坛重构与内容录入。</p>
+
+            <% if (errors && errors.length) { %>
+                <div class="error-list">
+                    <% errors.forEach(error => { %>
+                        <div class="flash flash-error"><%= error %></div>
+                    <% }) %>
+                </div>
+            <% } %>
+
+            <form action="/register" method="POST" class="form-grid" id="register-form">
+                <label class="form-group">
+                    <span class="form-label" data-i18n="auth.email">邮箱</span>
+                    <div class="input-with-button">
+                        <input type="email" name="email" id="email" class="form-control" value="<%= formData && formData.email ? formData.email : '' %>" data-i18n-placeholder="auth.emailPlaceholder" placeholder="name@basischina.com" required>
+                        <button type="button" class="btn btn-ghost" id="send-code-btn" data-i18n="auth.sendCode">发送验证码</button>
+                    </div>
+                    <span class="helper-text" id="code-sent-msg" style="color: var(--success); display: none;"></span>
+                </label>
+                <label class="form-group">
+                    <span class="form-label" data-i18n="auth.verificationCode">验证码</span>
+                    <input type="text" name="verificationCode" id="verificationCode" class="form-control" data-i18n-placeholder="auth.codePlaceholder" placeholder="6位验证码" required maxlength="6">
+                </label>
+                <label class="form-group">
+                    <span class="form-label">昵称</span>
+                    <input type="text" name="name" class="form-control" value="<%= formData && formData.name ? formData.name : '' %>" placeholder="例如：小明" required>
+                </label>
+                <label class="form-group">
+                    <span class="form-label">年级</span>
+                    <select name="grade" class="form-control" required>
+                        <option value="">选择年级</option>
+                        <% ['G6','G7','G8','G9','G10','G11','G12'].forEach(gradeOption => { %>
+                            <option value="<%= gradeOption %>" <%= formData && formData.grade === gradeOption ? 'selected' : '' %>><%= gradeOption %></option>
+                        <% }) %>
+                    </select>
+                </label>
+                <label class="form-group">
+                    <span class="form-label">密码</span>
+                    <input type="password" name="password" id="password" class="form-control" placeholder="至少 8 位" required minlength="8">
+                </label>
+                <label class="form-group">
+                    <span class="form-label">确认密码</span>
+                    <input type="password" name="confirmPassword" id="confirmPassword" class="form-control" placeholder="再次输入密码" required>
+                    <span class="helper-text" id="password-match-error" style="color: var(--danger); display: none;">两次输入的密码不一致</span>
+                </label>
+                <button type="submit" class="btn btn-primary btn-block">创建账号</button>
+            </form>
+
+            <script>
+            document.getElementById('register-form').addEventListener('submit', function(e) {
+                var password = document.getElementById('password').value;
+                var confirmPassword = document.getElementById('confirmPassword').value;
+                var errorEl = document.getElementById('password-match-error');
+
+                if (password !== confirmPassword) {
+                    e.preventDefault();
+                    errorEl.style.display = 'block';
+                    return false;
+                }
+                errorEl.style.display = 'none';
+                return true;
+            });
+
+            document.getElementById('send-code-btn').addEventListener('click', async function() {
+                var email = document.getElementById('email').value;
+                var btn = this;
+                var msgEl = document.getElementById('code-sent-msg');
+
+                if (!email) {
+                    return;
+                }
+
+                btn.disabled = true;
+                btn.textContent = '发送中...';
+
+                try {
+                    var res = await fetch('/api/register/send-code', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: email })
+                    });
+                    var data = await res.json();
+
+                    if (res.ok) {
+                        msgEl.textContent = '验证码已发送到您的邮箱';
+                        msgEl.style.display = 'block';
+                        btn.textContent = '已发送';
+                    } else {
+                        msgEl.textContent = data.error || '发送失败';
+                        msgEl.style.color = 'var(--danger)';
+                        msgEl.style.display = 'block';
+                        btn.disabled = false;
+                        btn.textContent = '重新发送';
+                    }
+                } catch (err) {
+                    msgEl.textContent = '网络错误，请重试';
+                    msgEl.style.color = 'var(--danger)';
+                    msgEl.style.display = 'block';
+                    btn.disabled = false;
+                    btn.textContent = '重新发送';
+                }
+            });
+            </script>
+
+            <div class="auth-footer">
+                <span data-i18n="auth.hasAccount">已有账号？</span>
+                <a href="/login" class="text-link" data-i18n="auth.login">立即登录</a>
+            </div>
+        </article>
+    </section>
+<%- include('partials/footer') %>

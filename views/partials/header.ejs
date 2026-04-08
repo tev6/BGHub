@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= pageTitle ? `${pageTitle} · BG Hub` : 'BG Hub' %></title>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="/js/i18n.js"></script>
+    <script src="/js/app.js"></script>
+</head>
+<body>
+    <header class="site-header">
+        <div class="header-shell">
+            <div class="brand-group">
+                <a href="/" class="logo">BG Hub</a>
+                <p class="brand-copy" data-i18n="nav.subtitle">贝赛思校园学习助手</p>
+            </div>
+
+            <button class="nav-toggle" type="button" data-nav-toggle aria-label="Toggle navigation">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+
+            <div class="nav-panel" data-nav-panel>
+                <nav class="site-nav">
+                    <a href="/" class="<%= currentPath === '/' ? 'is-active' : '' %>" data-i18n="nav.home">首页</a>
+                    <a href="/resources" class="<%= currentPath.startsWith('/resources') ? 'is-active' : '' %>" data-i18n="nav.resources">课件库</a>
+                    <a href="/forum" class="<%= currentPath.startsWith('/forum') ? 'is-active' : '' %>" data-i18n="nav.forum">互助广场</a>
+                    <% if (locals.user && locals.user.role_level >= 3) { %>
+                        <a href="/review" class="<%= currentPath.startsWith('/review') ? 'is-active' : '' %>" data-i18n="nav.review">审核</a>
+                        <a href="/dashboard" class="<%= currentPath.startsWith('/dashboard') ? 'is-active' : '' %>" data-tooltip="参与社区管理，审核内容获得积分" data-i18n="nav.dashboard">面板</a>
+                    <% } %>
+                </nav>
+
+                <form class="header-search" action="/search" method="GET">
+                    <input class="form-control" type="search" name="q" placeholder="搜索帖子、作业、课件、CJ" data-i18n-placeholder="nav.searchPlaceholder" value="">
+                    <button class="btn btn-primary" type="submit" data-i18n="common.search">搜索</button>
+                </form>
+
+                <div class="header-actions">
+                    <button class="btn btn-primary locale-toggle-single" type="button" onclick="i18n.setLocale(i18n.getLocale() === 'zh' ? 'en' : 'zh')" title="Switch Language">
+                        <span data-i18n="nav.langSwitch">EN</span>
+                    </button>
+                    <button class="theme-toggle" type="button" onclick="ThemeManager.toggle()" aria-label="Toggle theme">
+                        <span class="theme-icon-dark" style="display:none">☀️</span>
+                        <span class="theme-icon-light">🌙</span>
+                    </button>
+                    <% if (locals.user) { %>
+                        <a href="/notifications" class="header-icon-btn" title="通知">
+                            <span class="icon-bell">🔔</span>
+                            <span class="notification-badge" id="notif-badge" style="display:none">0</span>
+                        </a>
+                        <div class="user-summary">
+                            <a href="/settings" class="user-name-link"><%= locals.user.name %></a>
+                            <span><%= locals.user.grade %> · <%= locals.user.role_name %> · <%= locals.user.credit %></span>
+                        </div>
+                        <% if (locals.user.role_level >= 2) { %>
+                        <div class="publish-dropdown">
+                            <button class="btn btn-primary publish-dropdown-btn" type="button" tabindex="0" data-i18n="common.publish">发布</button>
+                            <div class="publish-dropdown-menu">
+                                <% if (locals.user.role_level >= 2) { %>
+                                    <a href="/forum/new" class="publish-dropdown-item" data-i18n="common.post">文章</a>
+                                <% } %>
+                                <% if (locals.user.role_level >= 3) { %>
+                                    <a href="/resources/new" class="publish-dropdown-item" data-i18n="common.resource">资源</a>
+                                <% } %>
+                                <% if (locals.user.role_level >= 4) { %>
+                                    <a href="/boards" class="publish-dropdown-item" data-i18n="common.cj">CJ</a>
+                                <% } %>
+                            </div>
+                        </div>
+                        <% } %>
+                        <form action="/logout" method="POST" id="logout-form">
+                            <button class="btn btn-ghost" type="button" onclick="showLogoutModal()" data-i18n="nav.logout">退出</button>
+                        </form>
+                    <% } else { %>
+                        <a href="/login" class="btn btn-ghost" data-i18n="nav.login">登录</a>
+                        <a href="/register" class="btn btn-primary" data-i18n="nav.register">注册</a>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="modal modal-hidden" id="logout-modal">
+        <div class="modal-backdrop" onclick="hideLogoutModal()"></div>
+        <div class="modal-content">
+            <h3 data-i18n="settings.confirmLogout">确认退出登录</h3>
+            <p data-i18n="settings.logoutPrompt">确定要退出当前账号吗？</p>
+            <div class="modal-actions">
+                <button class="btn btn-ghost" type="button" onclick="hideLogoutModal()" data-i18n="common.cancel">取消</button>
+                <button class="btn btn-primary" type="button" onclick="document.getElementById('logout-form').submit()" data-i18n="settings.confirmLogoutBtn">确认退出</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function showLogoutModal() {
+        document.getElementById('logout-modal').classList.remove('modal-hidden');
+    }
+
+    function hideLogoutModal() {
+        document.getElementById('logout-modal').classList.add('modal-hidden');
+    }
+
+    (function() {
+        fetch('/api/notifications/unread-count')
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                var badge = document.getElementById('notif-badge');
+                if (badge && data.count > 0) {
+                    badge.textContent = data.count;
+                    badge.style.display = 'inline-flex';
+                }
+            });
+    })();
+    </script>
+    <main class="page-shell">
+        <% if (flash) { %>
+            <div class="flash flash-<%= flash.type %>"><%= flash.message %></div>
+        <% } %>

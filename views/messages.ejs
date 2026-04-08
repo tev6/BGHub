@@ -1,0 +1,211 @@
+<%- include('partials/header') %>
+    <div class="messages-page">
+        <div class="messages-sidebar">
+            <div class="sidebar-header">
+                <h2>私信</h2>
+                <button class="btn btn-primary btn-sm" type="button" id="new-conversation">新建私信</button>
+            </div>
+
+            <div class="conversations-list">
+                <% if (conversations.length) { %>
+                    <% conversations.forEach(function(conv) { %>
+                        <a href="/messages/<%= conv.id %>" class="conversation-item <%= locals.currentConversationId == conv.id ? 'is-active' : '' %>">
+                            <div class="conversation-avatar">
+                                <span><%= conv.other_user_name ? conv.other_user_name.charAt(0) : '?' %></span>
+                            </div>
+                            <div class="conversation-info">
+                                <div class="conversation-head">
+                                    <strong><%= conv.other_user_name %></strong>
+                                    <% if (conv.unread_count > 0) { %>
+                                        <span class="unread-badge"><%= conv.unread_count %></span>
+                                    <% } %>
+                                </div>
+                                <p class="conversation-preview"><%= conv.last_message || '' %></p>
+                            </div>
+                            <span class="conversation-time"><%= conv.last_message_at ? formatDate(conv.last_message_at) : formatDate(conv.created_at) %></span>
+                        </a>
+                    <% }) %>
+                <% } else { %>
+                    <div class="empty-state">暂无私信会话</div>
+                <% } %>
+            </div>
+        </div>
+
+        <div class="messages-main">
+            <% if (locals.currentConversation && locals.currentConversation.messages) { %>
+                <div class="message-thread" data-conversation-id="<%= currentConversation.id %>">
+                    <div class="thread-header">
+                        <h3><%= currentConversation.other_user_name %> · LV<%= currentConversation.other_user_level %></h3>
+                    </div>
+
+                    <div class="thread-messages" id="thread-messages">
+                        <% currentConversation.messages.forEach(function(msg) { %>
+                            <div class="message <%= msg.sender_id === locals.user.id ? 'is-mine' : '' %>">
+                                <div class="message-avatar">
+                                    <span><%= msg.sender_name ? msg.sender_name.charAt(0) : '?' %></span>
+                                </div>
+                                <div class="message-body">
+                                    <div class="message-head">
+                                        <strong><%= msg.sender_name %></strong>
+                                        <span><%= formatDate(msg.created_at, true) %></span>
+                                    </div>
+                                    <p><%= msg.content %></p>
+                                </div>
+                            </div>
+                        <% }) %>
+                    </div>
+
+                    <form class="message-form" id="message-form">
+                        <textarea class="form-control" name="content" placeholder="输入消息..." rows="2"></textarea>
+                        <button class="btn btn-primary" type="submit">发送</button>
+                    </form>
+                </div>
+            <% } else { %>
+                <div class="messages-empty">
+                    <p data-i18n="messages.selectConversation">选择一个会话或开始新的私信</p>
+                </div>
+            <% } %>
+        </div>
+    </div>
+
+    <div class="modal" id="new-conversation-modal" hidden>
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>新建私信</h3>
+                <button class="btn btn-ghost modal-close" type="button">关闭</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" data-i18n="messages.userSearchLabel">输入用户ID或邮箱</label>
+                    <input class="form-control" type="text" id="user-search-input" placeholder data-i18n-placeholder="messages.searchPlaceholder">
+                </div>
+                <div id="user-search-results"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        var wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        var ws;
+        var currentUserId = <%= locals.user ? locals.user.id : 'null' %>;
+
+        if (currentUserId) {
+            ws = new WebSocket(wsProtocol + '//' + location.host + '?userId=' + currentUserId);
+
+            ws.onmessage = function(event) {
+                var data = JSON.parse(event.data);
+                if (data.type === 'private_message') {
+                    var threadId = document.querySelector('.thread-messages') && document.querySelector('.thread-messages').closest('.message-thread').dataset.conversationId;
+                    if (threadId == data.message.conversation_id) {
+                        appendMessage(data.message);
+                        fetch('/api/conversations/' + threadId + '/read', { method: 'POST' });
+                    }
+                    updateConversationList();
+                }
+            };
+        }
+
+        function appendMessage(msg) {
+            var container = document.getElementById('thread-messages');
+            if (!container) return;
+            var isMine = msg.sender_id === currentUserId;
+            var div = document.createElement('div');
+            div.className = 'message ' + (isMine ? 'is-mine' : '');
+            div.innerHTML = '<div class="message-avatar"><span>' + (msg.sender_name ? msg.sender_name.charAt(0) : '?') + '</span></div>' +
+                '<div class="message-body"><div class="message-head"><strong>' + msg.sender_name + '</strong><span>' + formatDateTime(msg.created_at) + '</span></div><p>' + escapeHtml(msg.content) + '</p></div>';
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function formatDateTime(dateStr) {
+            var d = new Date(dateStr);
+            return d.toLocaleString('zh-CN', { hour12: false });
+        }
+
+        function escapeHtml(text) {
+            var div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function updateConversationList() {
+            fetch('/api/conversations')
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    var list = document.querySelector('.conversations-list');
+                    if (list && data.conversations) {
+                        list.innerHTML = data.conversations.map(function(conv) {
+                            return '<a href="/messages/' + conv.id + '" class="conversation-item">' +
+                                '<div class="conversation-avatar"><span>' + (conv.other_user_name ? conv.other_user_name.charAt(0) : '?') + '</span></div>' +
+                                '<div class="conversation-info"><div class="conversation-head"><strong>' + conv.other_user_name + '</strong>' +
+                                (conv.unread_count > 0 ? '<span class="unread-badge">' + conv.unread_count + '</span>' : '') + '</div>' +
+                                '<p class="conversation-preview">' + (conv.last_message || '暂无消息') + '</p></div>' +
+                                '<span class="conversation-time">' + (conv.last_message_at ? conv.last_message_at : conv.created_at) + '</span></a>';
+                        }).join('');
+                    }
+                });
+        }
+
+        var messageForm = document.getElementById('message-form');
+        if (messageForm) {
+            messageForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                var textarea = messageForm.querySelector('textarea');
+                var content = textarea.value.trim();
+                var threadId = messageForm.closest('.message-thread').dataset.conversationId;
+                if (!content) return;
+
+                fetch('/api/conversations/' + threadId + '/messages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: content })
+                })
+                    .then(function(res) { return res.json(); })
+                    .then(function(data) {
+                        if (data.message) {
+                            textarea.value = '';
+                            appendMessage(data.message);
+                        }
+                    });
+            });
+        }
+
+        var modal = document.getElementById('new-conversation-modal');
+        var newConvBtn = document.getElementById('new-conversation');
+        if (newConvBtn && modal) {
+            newConvBtn.addEventListener('click', function() {
+                modal.hidden = false;
+            });
+            modal.querySelector('.modal-backdrop').addEventListener('click', function() {
+                modal.hidden = true;
+            });
+            modal.querySelector('.modal-close').addEventListener('click', function() {
+                modal.hidden = true;
+            });
+        }
+
+        var userSearchInput = document.getElementById('user-search-input');
+        if (userSearchInput) {
+            userSearchInput.addEventListener('input', function() {
+                var q = this.value.trim();
+                if (q.length < 2) return;
+                fetch('/api/search?q=' + encodeURIComponent(q))
+                    .then(function(res) { return res.json(); })
+                    .then(function(data) {
+                        var results = document.getElementById('user-search-results');
+                        if (data.results && data.results.posts) {
+                            results.innerHTML = '';
+                        }
+                    });
+            });
+        }
+
+        var threadMessages = document.getElementById('thread-messages');
+        if (threadMessages) {
+            threadMessages.scrollTop = threadMessages.scrollHeight;
+        }
+    })();
+    </script>
+<%- include('partials/footer') %>

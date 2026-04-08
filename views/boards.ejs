@@ -1,0 +1,23 @@
+<%- include('partials/header') %>
+    <section class="page-title">
+        <span class="eyebrow">CJ Management</span>
+        <h1 data-i18n="cj.management">CJ 管理</h1>
+    </section>
+
+    <section class="layout-grid">
+        <div class="content-stack">
+            <% boards.forEach(board => { %>
+                <article class="card section-card">
+                    <div class="panel-head panel-head--compact">
+                        <div>
+                            <span class="board-dot" style="background:<%= board.color %>"></span>
+                            <strong><%= board.name %></strong>
+                        </div>
+                        <a href="/boards/<%= board.slug %>" class="btn btn-primary" data-i18n="cj.editBoard">编辑</a>
+                    </div>
+                    <p><%= board.description %></p>
+                </article>
+            <% }) %>
+        </div>
+    </section>
+<%- include('partials/footer') %>

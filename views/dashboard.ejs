@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= pageTitle ? `${pageTitle} · BG Hub` : 'BG Hub' %></title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <%- include('partials/header') %>
+
+    <div class="page-container">
+        <div class="page-header">
+            <div class="welcome-section">
+                <h1><span data-i18n="dashboard.welcome">欢迎回来，</span><%= locals.user.name %></h1>
+                <p class="welcome-subtitle">
+                    <span class="lv-badge lv-<%= userLevel %>">LV<%= userLevel %></span>
+                    <span data-i18n="dashboard.credit">积分</span> <%= locals.user.credit || 0 %>
+                    <% if (userLevel >= 3 && userLevel <= 5) { %>
+                        · <span data-i18n="dashboard.reviewsToday">今日已审核</span> <%= myReviewsToday %> <span data-i18n="dashboard.reviewCount">条</span>
+                    <% } %>
+                </p>
+            </div>
+        </div>
+
+        <% if (userLevel >= 3) { %>
+        <section class="stats-section">
+            <div class="stats-grid">
+                <div class="card stat-card">
+                    <div class="stat-icon">📋</div>
+                    <div class="stat-info">
+                        <span class="stat-value"><%= pendingCount %></span>
+                        <span class="stat-label" data-i18n="dashboard.pendingReview">待审核内容</span>
+                    </div>
+                </div>
+
+                <div class="card stat-card">
+                    <div class="stat-icon">✅</div>
+                    <div class="stat-info">
+                        <span class="stat-value"><%= reviewStats %></span>
+                        <span class="stat-label" data-i18n="dashboard.totalReviews">累计已审核</span>
+                    </div>
+                </div>
+
+                <div class="card stat-card">
+                    <div class="stat-icon">⏳</div>
+                    <div class="stat-info">
+                        <span class="stat-value"><%= myPendingPosts %></span>
+                        <span class="stat-label" data-i18n="dashboard.myPendingPosts">我的待审帖子</span>
+                    </div>
+                </div>
+
+                <% if (userLevel >= 3 && userLevel <= 5) { %>
+                <div class="card stat-card highlight">
+                    <div class="stat-icon">🎯</div>
+                    <div class="stat-info">
+                        <span class="stat-value">LV<%= targetMin %>–<%= targetMax %></span>
+                        <span class="stat-label" data-i18n="dashboard.reviewScope">可审核范围</span>
+                    </div>
+                </div>
+                <% } %>
+            </div>
+        </section>
+        <% } %>
+
+        <section class="content-section">
+            <div class="content-grid">
+                <% if (userLevel >= 3 && userLevel <= 5) { %>
+                <article class="card info-card">
+                    <div class="card-header">
+                        <span class="card-icon">📋</span>
+                        <h3 data-i18n="dashboard.reviewScope">可审核范围</h3>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-description">
+                            <span data-i18n="dashboard.canReview">你可以审核</span> <strong>LV<%= targetMin %> – LV<%= targetMax %></strong> <span data-i18n="dashboard.userContent">用户的以下内容</span>：
+                        </p>
+                        <ul class="feature-list">
+                            <li><span class="check-icon">✓</span> <span data-i18n="dashboard.chatMessages">聊天区消息</span></li>
+                            <li><span class="check-icon">✓</span> <span data-i18n="dashboard.cjHomework">CJ 作业模块</span></li>
+                            <li><span class="check-icon">✓</span> <span data-i18n="dashboard.articles">文章 / 笔记</span></li>
+                            <li><span class="check-icon">✓</span> <span data-i18n="dashboard.resourceUpload">资源上传</span></li>
+                        </ul>
+                    </div>
+                    <div class="card-footer">
+                        <a href="/review" class="btn btn-primary btn-block" data-i18n="dashboard.goToReview">前往审核</a>
+                    </div>
+                </article>
+                <% } %>
+
+                <% if (userLevel === 55) { %>
+                <article class="card info-card teacher-card">
+                    <div class="card-header">
+                        <span class="card-icon">🔒</span>
+                        <h3 data-i18n="dashboard.teacherPrivileges">特殊权限（教师）</h3>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-description" data-i18n="dashboard.teacherDescription">你可以审核所有 LV0–LV5 用户的内容，并拥有以下特殊权限：</p>
+                        <ul class="feature-list">
+                            <li><span class="check-icon">✓</span> <span data-i18n="dashboard.tempMute">临时禁言用户（1小时 ~ 7天）</span></li>
+                            <li><span class="check-icon">✓</span> <span data-i18n="dashboard.lockContent">锁定违规内容</span></li>
+                            <li><span class="warning-icon">⚠</span> <span data-i18n="dashboard.cannotDelete">不可删除用户或修改系统设置</span></li>
+                        </ul>
+                    </div>
+                    <div class="card-footer">
+                        <a href="/review" class="btn btn-primary btn-block" data-i18n="dashboard.goToAdmin">前往管理</a>
+                    </div>
+                </article>
+                <% } %>
+
+                <% if (userLevel === 6) { %>
+                <article class="card info-card admin-card">
+                    <div class="card-header">
+                        <span class="card-icon">⚙️</span>
+                        <h3 data-i18n="dashboard.adminPanel">管理员面板</h3>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-description" data-i18n="dashboard.fullPermissions">拥有全部系统权限：</p>
+                        <ul class="feature-list">
+                            <li><span class="check-icon">✓</span> <span data-i18n="dashboard.contentManagement">全站内容管理</span></li>
+                            <li><span class="check-icon">✓</span> <span data-i18n="dashboard.userManagement">用户权限管理</span></li>
+                            <li><span class="check-icon">✓</span> <span data-i18n="dashboard.systemSettings">系统参数设置</span></li>
+                            <li><span class="check-icon">✓</span> <span data-i18n="dashboard.grantLv55">授予 / 撤销 LV5.5</span></li>
+                            <li><span class="danger-icon">⚠</span> <span data-i18n="dashboard.deleteUsers">删除任意用户</span></li>
+                        </ul>
+                    </div>
+                    <div class="card-footer action-group">
+                        <a href="/review" class="btn btn-primary" data-i18n="dashboard.contentReview">内容审核</a>
+                        <a href="/admin/users" class="btn btn-ghost" data-i18n="dashboard.userMgmt">用户管理</a>
+                    </div>
+                </article>
+                <% } %>
+
+                <article class="card tip-card">
+                    <div class="card-header">
+                        <span class="card-icon">💡</span>
+                        <h3 data-i18n="dashboard.reviewGuide">审核指南</h3>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-description" data-i18n="dashboard.reviewReward">正确审核他人内容可获得积分奖励：</p>
+                        <ul class="reward-list">
+                            <li>
+                                <span class="reward-icon">🎯</span>
+                                <span data-i18n="dashboard.reward1">每正确审核 10 条内容 +1 分</span>
+                            </li>
+                            <li>
+                                <span class="reward-icon">📈</span>
+                                <span data-i18n="dashboard.reward2">每日上限 +10 分</span>
+                            </li>
+                            <li>
+                                <span class="reward-icon">🔥</span>
+                                <span data-i18n="dashboard.reward3">连续 7 天无违规 +2 分</span>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="card-footer">
+                        <details class="standards-details">
+                            <summary data-i18n="dashboard.reviewStandards">审核标准是什么？</summary>
+                            <div class="standards-content">
+                                <div class="standard-item reject">
+                                    <span class="standard-badge danger">涉政/涉黄/涉暴</span>
+                                    <span data-i18n="dashboard.immediatelyReject">立即驳回</span>
+                                </div>
+                                <div class="standard-item reject">
+                                    <span class="standard-badge warning">广告/垃圾信息</span>
+                                    <span data-i18n="dashboard.reject">驳回</span>
+                                </div>
+                                <div class="standard-item reject">
+                                    <span class="standard-badge warning">虚假考试信息</span>
+                                    <span data-i18n="dashboard.reject">驳回</span>
+                                </div>
+                                <div class="standard-item approve">
+                                    <span class="standard-badge success">正常学习交流</span>
+                                    <span data-i18n="dashboard.approve">通过</span>
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+                </article>
+            </div>
+        </section>
+    </div>
+
+    <%- include('partials/footer') %>
+</body>
+</html>
