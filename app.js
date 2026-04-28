@@ -1533,6 +1533,35 @@ function createApp(options = {}) {
     applyContentCredit
   };
 
+  const { createServices } = require('./server/services');
+  const { moderateChatMessage, moderatePost, moderateResource, moderateContent } = require('./server/services/moderation');
+  
+  const notificationService = {
+    createNotification: async (userId, title, content, type) => {
+      await query.run(
+        'INSERT INTO notifications (user_id, title, content, notification_type) VALUES (?, ?, ?, ?)',
+        [userId, title, content, type]
+      );
+    }
+  };
+
+  const moderation = { moderateChatMessage, moderatePost, moderateResource, moderateContent };
+
+  const reviewService = require('./server/services/reviewService').createReviewService({
+    query,
+    creditService,
+    notificationService,
+    moderation,
+    getUserLevel
+  });
+
+  const reportService = require('./server/services/reportService').createReportService({
+    query,
+    creditService,
+    notificationService,
+    getUserLevel
+  });
+
   const helpers = {
     getUserLevel,
     validateEmail,
@@ -1575,6 +1604,9 @@ function createApp(options = {}) {
     getBoardDetail,
     getBoardBySlug,
     creditService,
+    reviewService,
+    reportService,
+    notificationService,
     renderMarkdown,
     formatDate,
     buildCountdown,

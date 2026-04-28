@@ -38,8 +38,8 @@
             <div class="panel-head panel-head--compact cj-panel-head">
                 <h2 data-tooltip="点击学科卡片查看作业、课件、公告" data-i18n="home.cjTitle">CJ</h2>
             </div>
-            <div class="cj-controls-row">
-                <% if (!user) { %>
+            <% if (!user) { %>
+            <div class="cj-controls-grade-row">
                 <div class="grade-selector" id="grade-selector">
                     <select id="guest-grade-select" class="form-control">
                         <option value="">年级</option>
@@ -56,7 +56,9 @@
                     </select>
                     <button type="button" id="grade-confirm-btn" class="btn btn-primary btn-sm">确认</button>
                 </div>
-                <% } else if (gradeContext && ['G6', 'G7', 'G8'].includes(gradeContext.grade)) { %>
+            </div>
+            <div class="cj-controls-date-row">
+                <% if (gradeContext && ['G6', 'G7', 'G8'].includes(gradeContext.grade)) { %>
                 <button type="button" class="class-toggle-btn" id="show-all-classes-btn" data-i18n="cj.showAllClasses" data-show-my="cj.showMyClass">
                     显示其他班
                 </button>
@@ -73,6 +75,26 @@
                     </div>
                 </form>
             </div>
+            <% } else { %>
+            <div class="cj-controls-row">
+                <% if (gradeContext && ['G6', 'G7', 'G8'].includes(gradeContext.grade)) { %>
+                <button type="button" class="class-toggle-btn" id="show-all-classes-btn" data-i18n="cj.showAllClasses" data-show-my="cj.showMyClass">
+                    显示其他班
+                </button>
+                <% } %>
+                <form class="cj-date-selector" action="/" method="GET">
+                    <div class="date-nav-row">
+                        <a href="/?date=<%= dateNavData.prevDate %>" class="btn btn-ghost date-nav-btn">
+                            <span>‹</span>
+                        </a>
+                        <span class="date-nav-current"><%= dateNavData.display %></span>
+                        <a href="/?date=<%= dateNavData.nextDate %>" class="btn btn-ghost date-nav-btn <%= dateNavData.isFuture ? 'disabled' : '' %>" <%= dateNavData.isFuture ? 'aria-disabled="true"' : '' %>>
+                            <span>›</span>
+                        </a>
+                    </div>
+                </form>
+            </div>
+            <% } %>
             <div class="cj-panel-body">
                 <div class="cj-list">
                     <% boards.forEach(board => { %>

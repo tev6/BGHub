@@ -524,8 +524,7 @@ textarea {
 }
 
 .article-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transform: translateY(-2px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
 }
 
 .article-card:last-child {
@@ -755,11 +754,21 @@ textarea {
 .cj-panel-body {
   flex: 1;
   overflow-y: auto;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
 }
 
 .cj-panel-body::-webkit-scrollbar {
-  display: none;
+  width: 6px;
+}
+
+.cj-panel-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cj-panel-body::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 3px;
 }
 
 .cj-list {
@@ -933,7 +942,7 @@ textarea {
 }
 
 .cj-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
 }
 
 .cj-card-header {
@@ -1119,7 +1128,6 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-bottom: 16px;
 }
 
 .class-switcher-btn {
@@ -1183,11 +1191,25 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  overflow-y: visible;
+  overflow-y: auto;
+  max-height: calc(100vh - 140px);
   scrollbar-width: thin;
   scrollbar-color: var(--line) transparent;
   direction: rtl;
   padding-left: 8px;
+}
+
+.article-column::-webkit-scrollbar {
+  width: 6px;
+}
+
+.article-column::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.article-column::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 3px;
 }
 
 .article-column > * {
@@ -1917,8 +1939,7 @@ textarea.form-control {
 }
 
 .forum-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px var(--shadow);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
 }
 
 .section-markdown,
@@ -2251,6 +2272,7 @@ textarea.form-control {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .grade-selector-row {
@@ -2258,6 +2280,40 @@ textarea.form-control {
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.cj-controls-grade-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.cj-controls-date-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cj-controls-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--surface);
+  border-radius: 12px;
+  margin-bottom: 24px;
+}
+
+.cj-controls-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cj-controls-row.single-row {
+  justify-content: flex-start;
 }
 
 .schedule-grid {

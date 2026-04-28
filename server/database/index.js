@@ -231,6 +231,10 @@ async function initializeDatabase(db, query, extraEnsureCreditRecord) {
 
   await ensureColumn(db, query, 'review_items', 'payload', "TEXT NOT NULL DEFAULT ''");
   await ensureColumn(db, query, 'review_items', 'ai_reviewed', 'INTEGER NOT NULL DEFAULT 0');
+  await ensureColumn(db, query, 'review_items', 'review_stage', "TEXT NOT NULL DEFAULT 'pending_human'");
+  await ensureColumn(db, query, 'review_items', 'ai_result', 'TEXT');
+  await ensureColumn(db, query, 'review_items', 'ai_reason', 'TEXT');
+  await ensureColumn(db, query, 'review_items', 'ai_reviewed_at', 'DATETIME');
 
   await query.run(`CREATE TABLE IF NOT EXISTS review_actions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -398,6 +402,8 @@ async function initializeDatabase(db, query, extraEnsureCreditRecord) {
   await ensureColumn(db, query, 'reports', 'review_result', 'TEXT');
   await ensureColumn(db, query, 'reports', 'target_user_id', 'INTEGER');
   await ensureColumn(db, query, 'reports', 'min_reviewer_level', 'INTEGER NOT NULL DEFAULT 0');
+  await ensureColumn(db, query, 'reports', 'reviewer_id', 'INTEGER');
+  await ensureColumn(db, query, 'reports', 'reviewed_at', 'DATETIME');
 
   await query.run(`CREATE TABLE IF NOT EXISTS review_appeals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -5,22 +5,9 @@
         <p>查看每日学科教学内容</p>
     </section>
 
-    <% if (gradeContext && ['G6', 'G7', 'G8'].includes(gradeContext.grade)) { %>
-    <div class="cj-class-controls">
-        <div class="class-switcher">
-            <button type="button" class="class-switcher-btn active" data-class="mine" data-i18n="cj.showMyClass">
-                仅显示本班
-            </button>
-            <button type="button" class="class-switcher-btn" data-class="all" data-i18n="cj.showAllClasses">
-                显示其他班
-            </button>
-        </div>
-    </div>
-    <% } %>
-
     <% if (!user) { %>
-    <div class="grade-selector" id="grade-selector">
-        <div class="grade-selector-row">
+    <div class="cj-controls-wrapper" id="grade-selector">
+        <div class="cj-controls-row">
             <select id="guest-grade-select" class="form-control">
                 <option value="">选择年级</option>
                 <option value="G6">G6</option>
@@ -36,23 +23,56 @@
             </select>
             <button type="button" id="grade-confirm-btn" class="btn btn-primary btn-sm">确认</button>
         </div>
+        <div class="cj-controls-row">
+            <% if (gradeContext && ['G6', 'G7', 'G8'].includes(gradeContext.grade)) { %>
+            <div class="class-switcher">
+                <button type="button" class="class-switcher-btn active" data-class="mine" data-i18n="cj.showMyClass">
+                    仅显示本班
+                </button>
+                <button type="button" class="class-switcher-btn" data-class="all" data-i18n="cj.showAllClasses">
+                    显示其他班
+                </button>
+            </div>
+            <% } %>
+            <div class="date-nav-row">
+                <a href="/cj?date=<%= prevDate %>" class="btn btn-ghost date-nav-btn">
+                    <span>‹</span>
+                </a>
+                <span class="date-nav-current"><%= dateDisplay %></span>
+                <a href="/cj?date=<%= nextDate %>" class="btn btn-ghost date-nav-btn <%= isFuture ? 'disabled' : '' %>" <%= isFuture ? 'aria-disabled="true"' : ''%>>
+                    <span>›</span>
+                </a>
+            </div>
+        </div>
+    </div>
+    <% } else { %>
+    <div class="cj-controls-wrapper">
+        <div class="cj-controls-row single-row">
+            <% if (gradeContext && ['G6', 'G7', 'G8'].includes(gradeContext.grade)) { %>
+            <div class="class-switcher">
+                <button type="button" class="class-switcher-btn active" data-class="mine" data-i18n="cj.showMyClass">
+                    仅显示本班
+                </button>
+                <button type="button" class="class-switcher-btn" data-class="all" data-i18n="cj.showAllClasses">
+                    显示其他班
+                </button>
+            </div>
+            <% } %>
+            <div class="date-nav-row">
+                <a href="/cj?date=<%= prevDate %>" class="btn btn-ghost date-nav-btn">
+                    <span>‹</span>
+                </a>
+                <span class="date-nav-current"><%= dateDisplay %></span>
+                <a href="/cj?date=<%= nextDate %>" class="btn btn-ghost date-nav-btn <%= isFuture ? 'disabled' : '' %>" <%= isFuture ? 'aria-disabled="true"' : ''%>>
+                    <span>›</span>
+                </a>
+                <% if (user && user.role_level >= 1) { %>
+                    <a href="/cj/edit" class="btn btn-ghost" style="margin-left: auto;">✏️ 编辑 CJ</a>
+                <% } %>
+            </div>
+        </div>
     </div>
     <% } %>
-
-    <section class="cj-date-bar card">
-        <div class="date-nav-row">
-            <a href="/cj?date=<%= prevDate %>" class="btn btn-ghost date-nav-btn">
-                <span>‹</span>
-            </a>
-            <span class="date-nav-current"><%= dateDisplay %></span>
-            <a href="/cj?date=<%= nextDate %>" class="btn btn-ghost date-nav-btn <%= isFuture ? 'disabled' : '' %>" <%= isFuture ? 'aria-disabled="true"' : ''%>>
-                <span>›</span>
-            </a>
-            <% if (user && user.role_level >= 1) { %>
-                <a href="/cj/edit" class="btn btn-ghost" style="margin-left: auto;">✏️ 编辑 CJ</a>
-            <% } %>
-        </div>
-    </section>
 
     <section class="cj-grid">
         <% boards.forEach(function(board) { %>

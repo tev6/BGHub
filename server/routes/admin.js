@@ -1,11 +1,23 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 
-function createAdminRoutes({ query, requireAuth, requireLevel, creditService, ensureColumn, setFlash }) {
+function createAdminRoutes({ query, requireAuth, requireLevel, creditService, reviewService, reportService, notificationService, ensureColumn, setFlash }) {
   const router = express.Router();
 
   function getUserLevel(user) {
     return Math.max(0, Number(user && user.role_level != null ? user.role_level : 0));
+  }
+
+  function getStageLabel(stage) {
+    const labels = {
+      'pending_ai': '等待AI审核',
+      'ai_reviewing': 'AI审核中',
+      'ai_rejected': 'AI审核未通过',
+      'pending_human': '等待人工审核',
+      'approved': '已通过',
+      'rejected': '已驳回'
+    };
+    return labels[stage] || stage;
   }
 
   function wantsJson(req) {
@@ -241,53 +253,40 @@ function createAdminRoutes({ query, requireAuth, requireLevel, creditService, en
   });
 
   router.get('/api/review/items', requireAuth, requireLevel(3), async (req, res) => {
-    const page = Math.max(1, Number(req.query.page || 1));
-    const limit = 20;
-    const offset = (page - 1) * limit;
-    const userLevel = getUserLevel(req.user);
-    const status = String(req.query.status || 'pending');
-    const typeFilter = String(req.query.type || '');
+    try {
+      const userLevel = getUserLevel(req.user);
+      const filters = {
+        status: String(req.query.status || 'pending'),
+        stage: String(req.query.stage || ''),
+        itemType: String(req.query.type || ''),
+        page: Math.max(1, Number(req.query.page || 1)),
+        limit: 20
+      };
 
-    let statusFilter = "ri.status = ?";
-    let params = [status];
-
-    if (status === 'pending') {
-      if (userLevel === 3) {
-        statusFilter = "ri.status = 'pending' AND ri.item_type = 'chat'";
-      } else if (userLevel === 4) {
-        statusFilter = "ri.status = 'pending' AND ri.item_type IN ('chat', 'post')";
-      }
+      const result = await reviewService.getReviewQueue(userLevel, filters);
+      
+      res.json({
+        items: result.items.map(item => ({
+          ...item,
+          stage_label: getStageLabel(item.review_stage)
+        })),
+        pagination: result.pagination
+      });
+    } catch (error) {
+      console.error('[Review API] Error:', error.message);
+      res.status(500).json({ error: error.message });
     }
+  });
 
-    if (typeFilter) {
-      statusFilter += " AND ri.item_type = ?";
-      params.push(typeFilter);
+  router.get('/api/review/stats', requireAuth, requireLevel(3), async (req, res) => {
+    try {
+      const userLevel = getUserLevel(req.user);
+      const stats = await reviewService.getReviewStats(userLevel);
+      res.json(stats);
+    } catch (error) {
+      console.error('[Review Stats API] Error:', error.message);
+      res.status(500).json({ error: error.message });
     }
-
-    const items = await query.all(`
-      SELECT ri.*,
-             u.name AS author_name,
-             r.name AS reviewer_name
-      FROM review_items ri
-      JOIN users u ON u.id = ri.created_by
-      LEFT JOIN users r ON r.id = ri.reviewer_id
-      WHERE ${statusFilter}
-      ORDER BY datetime(ri.created_at) DESC
-      LIMIT ? OFFSET ?
-    `, [...params, limit, offset]);
-
-    const countRow = await query.get(`
-      SELECT COUNT(*) AS total FROM review_items ri WHERE ${statusFilter}
-    `, params);
-
-    res.json({
-      items,
-      pagination: {
-        page,
-        totalPages: Math.ceil(countRow.total / limit),
-        totalItems: countRow.total
-      }
-    });
   });
 
   router.get('/api/review/appeals/list', requireAuth, requireLevel(3), async (req, res) => {
@@ -334,12 +333,24 @@ function createAdminRoutes({ query, requireAuth, requireLevel, creditService, en
     const limit = 20;
     const offset = (page - 1) * limit;
     const typeFilter = String(req.query.type || '');
+    const userLevel = getUserLevel(req.user);
 
     let typeCondition = '';
+    let typeFilterForCount = '';
     let params = [];
+    let countParams = [];
     if (typeFilter) {
       typeCondition = 'AND ri.item_type = ?';
+      typeFilterForCount = 'AND ri.item_type = ?';
       params.push(typeFilter);
+      countParams.push(typeFilter);
+    }
+
+    let itemTypeFilter = '';
+    if (userLevel === 3) {
+      itemTypeFilter = "AND ri.item_type = 'chat'";
+    } else if (userLevel === 4) {
+      itemTypeFilter = "AND ri.item_type IN ('chat', 'post')";
     }
 
     const items = await query.all(`
@@ -355,15 +366,21 @@ function createAdminRoutes({ query, requireAuth, requireLevel, creditService, en
              END AS item_title
       FROM review_items ri
       JOIN users u ON u.id = ri.created_by
-      WHERE ri.ai_reviewed = 1 AND ri.status = 'pending' ${typeCondition}
+      WHERE ri.status = 'pending' 
+        AND ri.review_stage IN ('pending_ai', 'ai_reviewing')
+        ${itemTypeFilter}
+        ${typeCondition}
       ORDER BY ri.created_at DESC
       LIMIT ? OFFSET ?
     `, [...params, limit, offset]);
 
     const countRow = await query.get(`
       SELECT COUNT(*) AS total FROM review_items ri
-      WHERE ri.ai_reviewed = 1 AND ri.status = 'pending' ${typeCondition}
-    `, params);
+      WHERE ri.status = 'pending' 
+        AND ri.review_stage IN ('pending_ai', 'ai_reviewing')
+        ${itemTypeFilter}
+        ${typeFilterForCount}
+    `, countParams);
 
     res.json({
       items: items.map(item => ({
@@ -374,6 +391,7 @@ function createAdminRoutes({ query, requireAuth, requireLevel, creditService, en
         page,
         limit,
         total: countRow.total,
+        totalItems: countRow.total,
         totalPages: Math.ceil(countRow.total / limit)
       }
     });
@@ -415,115 +433,69 @@ function createAdminRoutes({ query, requireAuth, requireLevel, creditService, en
   });
 
   router.post('/api/review/items/:id/approve', requireAuth, requireLevel(3), async (req, res) => {
-    const reason = String(req.body.reason || '').trim();
-    if (reason.length < 10 || reason.length > 200) {
-      res.status(400).json({ error: '审核理由需在 10-200 个字符之间' });
-      return;
+    try {
+      const reason = String(req.body.reason || '').trim();
+      if (reason.length < 10 || reason.length > 200) {
+        res.status(400).json({ error: '审核理由需在 10-200 个字符之间' });
+        return;
+      }
+
+      const result = await reviewService.processHumanReview(
+        Number(req.params.id),
+        req.user.id,
+        'approve',
+        reason
+      );
+
+      if (req.app.locals.sendToUser) {
+        const item = await query.get('SELECT * FROM review_items WHERE id = ?', [req.params.id]);
+        if (item) {
+          req.app.locals.sendToUser(item.created_by, {
+            type: 'notification',
+            title: '内容审核通过',
+            content: '您的' + (item.item_type === 'post' ? '帖子' : item.item_type === 'chat' ? '聊天消息' : '资源') + '已通过审核'
+          });
+        }
+      }
+
+      res.json({ ok: true, message: '审核通过' });
+    } catch (error) {
+      console.error('[Review Approve API] Error:', error.message);
+      res.status(400).json({ error: error.message });
     }
-
-    const item = await query.get('SELECT * FROM review_items WHERE id = ?', [req.params.id]);
-    if (!item) {
-      res.status(404).json({ error: '审核项不存在' });
-      return;
-    }
-
-    if (item.status !== 'pending') {
-      res.status(400).json({ error: '该审核项已处理' });
-      return;
-    }
-
-    const userLevel = getUserLevel(req.user);
-    if (userLevel === 3 && item.item_type !== 'chat') {
-      res.status(403).json({ error: 'LV3 只能审核聊天消息' });
-      return;
-    }
-
-    await query.run(
-      "UPDATE review_items SET status = 'approved', reviewer_id = ?, decision_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-      [req.user.id, reason, req.params.id]
-    );
-    await query.run(
-      'INSERT INTO review_actions (review_id, reviewer_id, action, reason) VALUES (?, ?, ?, ?)',
-      [req.params.id, req.user.id, 'approve', reason]
-    );
-
-    if (item.item_type === 'post') {
-      await query.run("UPDATE posts SET review_status = 'approved' WHERE id = ?", [item.item_id]);
-    } else if (item.item_type === 'chat') {
-      await query.run("UPDATE chat_messages SET status = 'approved' WHERE id = ?", [item.item_id]);
-    } else if (item.item_type === 'resource') {
-      await query.run("UPDATE resources SET status = 'approved' WHERE id = ?", [item.item_id]);
-    }
-
-    const creditDelta = userLevel === 3 ? 5 : 3;
-    await creditService.changeCredit(item.created_by, creditDelta, `审核通过奖励`, req.user.id);
-
-    await query.run(
-      'INSERT INTO notifications (user_id, title, content, notification_type) VALUES (?, ?, ?, ?)',
-      [item.created_by, '内容审核通过', `您的${item.item_type === 'post' ? '帖子' : item.item_type === 'chat' ? '聊天消息' : '资源'}已通过审核`, 'review']
-    );
-
-    if (req.app.locals.sendToUser) {
-      req.app.locals.sendToUser(item.created_by, {
-        type: 'notification',
-        title: '内容审核通过',
-        content: `您的${item.item_type === 'post' ? '帖子' : item.item_type === 'chat' ? '聊天消息' : '资源'}已通过审核`
-      });
-    }
-
-    res.json({ ok: true, message: '审核通过' });
   });
 
   router.post('/api/review/items/:id/reject', requireAuth, requireLevel(3), async (req, res) => {
-    const reason = String(req.body.reason || '').trim();
-    if (reason.length < 10 || reason.length > 200) {
-      res.status(400).json({ error: '审核理由需在 10-200 个字符之间' });
-      return;
+    try {
+      const reason = String(req.body.reason || '').trim();
+      if (reason.length < 10 || reason.length > 200) {
+        res.status(400).json({ error: '审核理由需在 10-200 个字符之间' });
+        return;
+      }
+
+      const result = await reviewService.processHumanReview(
+        Number(req.params.id),
+        req.user.id,
+        'reject',
+        reason
+      );
+
+      if (req.app.locals.sendToUser) {
+        const item = await query.get('SELECT * FROM review_items WHERE id = ?', [req.params.id]);
+        if (item) {
+          req.app.locals.sendToUser(item.created_by, {
+            type: 'notification',
+            title: '内容审核未通过',
+            content: '您的' + (item.item_type === 'post' ? '帖子' : item.item_type === 'chat' ? '聊天消息' : '资源') + '未通过审核'
+          });
+        }
+      }
+
+      res.json({ ok: true, message: '审核驳回' });
+    } catch (error) {
+      console.error('[Review Reject API] Error:', error.message);
+      res.status(400).json({ error: error.message });
     }
-
-    const item = await query.get('SELECT * FROM review_items WHERE id = ?', [req.params.id]);
-    if (!item) {
-      res.status(404).json({ error: '审核项不存在' });
-      return;
-    }
-
-    if (item.status !== 'pending') {
-      res.status(400).json({ error: '该审核项已处理' });
-      return;
-    }
-
-    const userLevel = getUserLevel(req.user);
-    if (userLevel === 3 && item.item_type !== 'chat') {
-      res.status(403).json({ error: 'LV3 只能审核聊天消息' });
-      return;
-    }
-
-    await query.run(
-      "UPDATE review_items SET status = 'rejected', reviewer_id = ?, decision_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-      [req.user.id, reason, req.params.id]
-    );
-    await query.run(
-      'INSERT INTO review_actions (review_id, reviewer_id, action, reason) VALUES (?, ?, ?, ?)',
-      [req.params.id, req.user.id, 'reject', reason]
-    );
-
-    const creditDelta = userLevel === 3 ? -5 : -3;
-    await creditService.changeCredit(item.created_by, creditDelta, `审核驳回扣减`, req.user.id);
-
-    await query.run(
-      'INSERT INTO notifications (user_id, title, content, notification_type) VALUES (?, ?, ?, ?)',
-      [item.created_by, '内容审核未通过', `您的${item.item_type === 'post' ? '帖子' : item.item_type === 'chat' ? '聊天消息' : '资源'}未通过审核: ${reason}`, 'review']
-    );
-
-    if (req.app.locals.sendToUser) {
-      req.app.locals.sendToUser(item.created_by, {
-        type: 'notification',
-        title: '内容审核未通过',
-        content: `您的${item.item_type === 'post' ? '帖子' : item.item_type === 'chat' ? '聊天消息' : '资源'}未通过审核`
-      });
-    }
-
-    res.json({ ok: true, message: '审核驳回' });
   });
 
   router.get('/api/review/appeals', requireAuth, requireLevel(3), async (req, res) => {
@@ -587,171 +559,102 @@ function createAdminRoutes({ query, requireAuth, requireLevel, creditService, en
   });
 
   router.get('/api/reports/list', requireAuth, requireLevel(4), async (req, res) => {
-    const page = Math.max(1, Number(req.query.page || 1));
-    const limit = 20;
-    const offset = (page - 1) * limit;
-    const status = String(req.query.status || 'pending');
+    try {
+      const userLevel = getUserLevel(req.user);
+      const filters = {
+        status: String(req.query.status || 'pending'),
+        page: Math.max(1, Number(req.query.page || 1)),
+        limit: 20
+      };
 
-    const userLevel = getUserLevel(req.user);
-    let where = "r.status = ?";
-    let params = [status];
-
-    if (userLevel === 4) {
-      where += " AND r.min_reviewer_level <= 5";
-    } else if (userLevel === 5) {
-      where += " AND r.min_reviewer_level <= 5";
+      const result = await reportService.getReportQueue(userLevel, filters);
+      res.json(result);
+    } catch (error) {
+      console.error('[Reports List API] Error:', error.message);
+      res.status(500).json({ error: error.message });
     }
+  });
 
-    const reports = await query.all(`
-      SELECT r.*,
-             reporter.name AS reporter_name,
-             target.name AS target_name,
-             target.role_level AS target_role_level,
-             reviewer.name AS reviewer_name,
-             (SELECT COUNT(*) FROM reports WHERE target_user_id = r.target_user_id AND status = 'pending') AS pending_count_for_target
-      FROM reports r
-      JOIN users reporter ON reporter.id = r.reporter_id
-      LEFT JOIN users target ON target.id = r.target_user_id
-      LEFT JOIN users reviewer ON reviewer.id = r.reviewer_id
-      WHERE ${where}
-      ORDER BY r.min_reviewer_level DESC, datetime(r.created_at) DESC
-      LIMIT ? OFFSET ?
-    `, [...params, limit, offset]);
+  router.get('/api/reports/stats', requireAuth, requireLevel(4), async (req, res) => {
+    try {
+      const userLevel = getUserLevel(req.user);
+      const stats = await reportService.getReportStats(userLevel);
+      res.json(stats);
+    } catch (error) {
+      console.error('[Reports Stats API] Error:', error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
 
-    const countRow = await query.get(`
-      SELECT COUNT(*) AS total FROM reports r WHERE ${where}
-    `, params);
+  router.get('/api/reports/:id', requireAuth, requireLevel(4), async (req, res) => {
+    try {
+      const report = await query.get(`
+        SELECT r.*,
+               reporter.name AS reporter_name,
+               target.name AS target_name,
+               target.role_level AS target_role_level,
+               reviewer.name AS reviewer_name
+        FROM reports r
+        JOIN users reporter ON reporter.id = r.reporter_id
+        LEFT JOIN users target ON target.id = r.target_user_id
+        LEFT JOIN users reviewer ON reviewer.id = r.reviewer_id
+        WHERE r.id = ?
+      `, [req.params.id]);
 
-    res.json({
-      reports,
-      pagination: {
-        page,
-        totalPages: Math.ceil(countRow.total / limit),
-        totalItems: countRow.total
+      if (!report) {
+        res.status(404).json({ error: '举报不存在' });
+        return;
       }
-    });
+
+      res.json({ report });
+    } catch (error) {
+      console.error('[Report Detail API] Error:', error.message);
+      res.status(500).json({ error: error.message });
+    }
   });
 
   router.post('/api/reports/:id/verify', requireAuth, requireLevel(4), async (req, res) => {
-    const reportId = Number(req.params.id);
-    const reason = String(req.body.reason || '').trim();
-    const ip = req.socket && req.socket.remoteAddress ? req.socket.remoteAddress : '';
-
-    const report = await query.get('SELECT * FROM reports WHERE id = ?', [reportId]);
-    if (!report) {
-      res.status(404).json({ error: '举报不存在' });
-      return;
-    }
-
-    if (report.status !== 'pending') {
-      res.status(400).json({ error: '该举报已处理' });
-      return;
-    }
-
-    const userLevel = getUserLevel(req.user);
-    if (userLevel < report.min_reviewer_level) {
-      res.status(403).json({ error: `该举报需要更高权限级别（LV${report.min_reviewer_level}）才能处理` });
-      return;
-    }
-
-    const pendingCountRow = await query.get(
-      'SELECT COUNT(*) AS count FROM reports WHERE target_user_id = ? AND status = \'pending\'',
-      [report.target_user_id]
-    );
-    const pendingCount = pendingCountRow ? pendingCountRow.count : 0;
-
-    if (report.min_reviewer_level >= 5 && report.target_user_id) {
-      const targetUser = await query.get('SELECT role_level FROM users WHERE id = ?', [report.target_user_id]);
-      if (targetUser) {
-        if (targetUser.role_level === 5 && pendingCount < 3) {
-          res.status(400).json({ error: 'LV5用户需要至少3条待处理举报才能处理' });
-          return;
-        }
-        if (targetUser.role_level === 55 && pendingCount < 5) {
-          res.status(400).json({ error: 'LV5.5用户需要至少5条待处理举报才能处理' });
-          return;
-        }
+    try {
+      const reason = String(req.body.reason || '').trim();
+      if (reason.length < 5) {
+        res.status(400).json({ error: '请提供处理理由' });
+        return;
       }
-    }
 
-    await query.run(
-      "UPDATE reports SET status = 'verified', reviewer_id = ?, review_result = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ?",
-      [req.user.id, reason, reportId]
-    );
-
-    let reporterReward = 3;
-    let targetCreditDelta = 0;
-    let targetCreditReason = '';
-
-    if (report.target_type === 'chat') {
-      targetCreditDelta = -5;
-      targetCreditReason = '聊天消息被举报成立';
-      reporterReward = 1;
-    } else if (report.target_type === 'post') {
-      targetCreditDelta = -15;
-      targetCreditReason = '帖子被举报成立';
-      reporterReward = 5;
-    } else if (report.target_type === 'comment') {
-      targetCreditDelta = -8;
-      targetCreditReason = '评论被举报成立';
-      reporterReward = 3;
-    } else if (report.target_type === 'resource') {
-      targetCreditDelta = -10;
-      targetCreditReason = '资源被举报成立';
-      reporterReward = 5;
-    } else if (report.target_type === 'cj') {
-      targetCreditDelta = -10;
-      targetCreditReason = 'CJ内容被举报成立';
-      reporterReward = 3;
-    }
-
-    if (report.target_user_id && targetCreditDelta !== 0) {
-      await creditService.changeCredit(report.target_user_id, targetCreditDelta, targetCreditReason, req.user.id);
-    }
-
-    await creditService.changeCredit(report.reporter_id, reporterReward, '举报成功奖励', req.user.id);
-
-    await query.run(
-      'INSERT INTO notifications (user_id, title, content, notification_type) VALUES (?, ?, ?, ?)',
-      [report.reporter_id, '举报结果', `您的举报已成立，获得${reporterReward}积分奖励`, 'interaction']
-    );
-
-    if (report.target_user_id) {
-      await query.run(
-        'INSERT INTO notifications (user_id, title, content, notification_type) VALUES (?, ?, ?, ?)',
-        [report.target_user_id, '违规通知', `您的${report.target_type}因被举报存在违规行为，已受到处理`, 'system']
+      const result = await reportService.processReport(
+        Number(req.params.id),
+        req.user.id,
+        'verify',
+        reason
       );
-    }
 
-    res.json({ ok: true, message: '举报已成立' });
+      res.json({ ok: true, message: '举报已成立' });
+    } catch (error) {
+      console.error('[Report Verify API] Error:', error.message);
+      res.status(400).json({ error: error.message });
+    }
   });
 
   router.post('/api/reports/:id/dismiss', requireAuth, requireLevel(4), async (req, res) => {
-    const reportId = Number(req.params.id);
-    const reason = String(req.body.reason || '').trim();
+    try {
+      const reason = String(req.body.reason || '').trim();
+      if (reason.length < 5) {
+        res.status(400).json({ error: '请提供处理理由' });
+        return;
+      }
 
-    const report = await query.get('SELECT * FROM reports WHERE id = ?', [reportId]);
-    if (!report) {
-      res.status(404).json({ error: '举报不存在' });
-      return;
+      const result = await reportService.processReport(
+        Number(req.params.id),
+        req.user.id,
+        'dismiss',
+        reason
+      );
+
+      res.json({ ok: true, message: '举报已驳回' });
+    } catch (error) {
+      console.error('[Report Dismiss API] Error:', error.message);
+      res.status(400).json({ error: error.message });
     }
-
-    if (report.status !== 'pending') {
-      res.status(400).json({ error: '该举报已处理' });
-      return;
-    }
-
-    await query.run(
-      "UPDATE reports SET status = 'dismissed', reviewer_id = ?, review_result = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ?",
-      [req.user.id, reason, reportId]
-    );
-
-    await query.run(
-      'INSERT INTO notifications (user_id, title, content, notification_type) VALUES (?, ?, ?, ?)',
-      [report.reporter_id, '举报结果', `您的举报经审核不成立：${reason}`, 'interaction']
-    );
-
-    res.json({ ok: true, message: '举报已驳回' });
   });
 
   router.post('/api/review/:id/appeal-decide', requireAuth, requireLevel(3), async (req, res) => {
