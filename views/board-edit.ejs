@@ -1,0 +1,62 @@
+<%- include('partials/header') %>
+    <section class="page-title">
+        <span class="eyebrow" data-i18n="board.maintainContent">维护 CJ 内容</span>
+        <h1><%= (locale === 'en' && detail.board.name_en) ? detail.board.name_en : detail.board.name %> - CJ 编辑</h1>
+        <p><%= detail.board.description %></p>
+    </section>
+
+    <section class="layout-grid">
+        <article class="card section-card">
+            <form action="/boards/<%= detail.board.slug %>/sections" method="POST">
+                <div class="form-group">
+                    <label for="section" class="form-label" data-i18n="board.selectSection">选择要更新的分区</label>
+                    <select name="section" id="section" class="form-control" required>
+                        <option value="IC"><%= (locale === 'en' && sectionTitlesEn['IC']) ? sectionTitlesEn['IC'] : sectionTitles['IC'] %></option>
+                        <option value="HW"><%= (locale === 'en' && sectionTitlesEn['HW']) ? sectionTitlesEn['HW'] : sectionTitles['HW'] %></option>
+                        <option value="A"><%= (locale === 'en' && sectionTitlesEn['A']) ? sectionTitlesEn['A'] : sectionTitles['A'] %></option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="date" class="form-label">日期</label>
+                    <input type="date" name="date" id="date" class="form-control" value="<%= currentDate %>">
+                    <span class="helper-text">留空则更新今天的 CJ 内容</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="title" class="form-label">标题（可选）</label>
+                    <input type="text" name="title" id="title" class="form-control" placeholder="输入分区标题">
+                </div>
+
+                <div class="form-group">
+                    <label for="content" class="form-label" data-i18n="board.contentPlaceholder">内容 (Markdown)</label>
+                    <textarea name="content" id="content" class="form-control" rows="15" placeholder="使用 Markdown 维护 CJ 内容"><%= currentContent %></textarea>
+                </div>
+
+                <div class="action-row">
+                    <button type="submit" class="btn btn-primary" data-i18n="board.saveContent">保存 CJ</button>
+                    <a class="btn btn-ghost" href="/cj/subject?subject=<%= detail.board.slug %>" data-i18n="common.cancel">取消</a>
+                </div>
+            </form>
+        </article>
+    </section>
+
+    <section class="layout-grid" style="margin-top: 2rem;">
+        <article class="card">
+            <h3>审核说明</h3>
+            <div class="level-info-box">
+                <% if (user.role_level >= 4 && user.role_level < 6) { %>
+                    <p><strong>LV4+ 用户</strong>：您的内容直接发布，无需 AI 审核。</p>
+                    <p>但如果被举报，内容将进入人工审核流程。</p>
+                <% } else if (user.role_level === 55) { %>
+                    <p><strong>LV5.5 用户（教师）</strong>：您的内容完全免审核，可直接发布。</p>
+                <% } else if (user.role_level === 6) { %>
+                    <p><strong>管理员</strong>：您拥有最高权限，所有内容直接发布。</p>
+                <% } else { %>
+                    <p>您的内容需要经过 <strong>AI 审核</strong> 后才能发布。</p>
+                    <p>审核失败每天有 <strong>2 次人工复审申诉</strong> 额度。</p>
+                <% } %>
+            </div>
+        </article>
+    </section>
+<%- include('partials/footer') %>

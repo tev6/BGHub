@@ -101,19 +101,30 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           if (textArea) {
             textArea.value = '';
-            textArea.disabled = true;
           }
-          if (submitButton) {
-            submitButton.disabled = true;
-            submitButton.textContent = 'AI审核中...';
+          if (chatForm) {
+            chatForm.style.display = 'none';
+          }
+          if (window.pollMessageStatus && payload.messageId) {
+            window.pollMessageStatus(payload.messageId);
           }
         } else if (payload.message) {
           const bubble = document.createElement('div');
           bubble.className = 'chat-bubble';
+          if (payload.message.id) {
+            bubble.dataset.messageId = payload.message.id;
+          }
+          
+          let deleteBtn = '';
+          if (payload.message.canDelete && payload.message.id) {
+            deleteBtn = '<button class="chat-delete-btn" onclick="deleteChatMessage(' + payload.message.id + ')" title="删除">🗑️</button>';
+          }
+          
           bubble.innerHTML = `
             <div class="chat-bubble-head">
               <strong>${payload.message.author_name}</strong>
-              <span>${payload.message.created_at_display}</span>
+              <span>${payload.message.created_at_display || new Date().toLocaleString()}</span>
+              ${deleteBtn}
             </div>
             <p>${payload.message.content}</p>
           `;
@@ -133,8 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }, 5000);
         }
       } finally {
-        if (submitButton && !chatPendingIndicator?.hidden) {
-        } else if (submitButton) {
+        if (submitButton) {
           submitButton.disabled = false;
         }
       }
@@ -157,6 +167,9 @@ document.addEventListener('DOMContentLoaded', () => {
               if (chatPendingIndicator) {
                 chatPendingIndicator.hidden = true;
               }
+              if (chatForm) {
+                chatForm.style.display = '';
+              }
               var textArea = chatForm.querySelector('textarea[name="content"]');
               var submitBtn = chatForm.querySelector('[data-chat-submit-btn]');
               if (textArea) textArea.disabled = false;
@@ -172,6 +185,9 @@ document.addEventListener('DOMContentLoaded', () => {
               if (chatPendingIndicator) {
                 chatPendingIndicator.textContent = '消息未通过审核: ' + (data.reason || '内容违规');
                 chatPendingIndicator.style.color = 'var(--danger)';
+              }
+              if (chatForm) {
+                chatForm.style.display = '';
               }
               var textArea2 = chatForm.querySelector('textarea[name="content"]');
               var submitBtn2 = chatForm.querySelector('[data-chat-submit-btn]');
@@ -190,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const chatTextarea = document.querySelector('[data-chat-textarea]');
   if (chatTextarea && chatForm) {
     chatTextarea.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
         chatForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
       }
@@ -266,3 +282,39 @@ document.addEventListener('DOMContentLoaded', () => {
     image.addEventListener('error', clearLoading, { once: true });
   });
 });
+
+window.deleteChatMessage = async function(messageId) {
+  if (!messageId) return;
+
+  if (!window.confirm('确定要删除这条消息吗？')) {
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/chat/messages/' + messageId, {
+      method: 'DELETE'
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      alert(result.error || '删除失败');
+      return;
+    }
+
+    const bubble = document.querySelector('.chat-bubble[data-message-id="' + messageId + '"]');
+    if (bubble) {
+      bubble.remove();
+    }
+  } catch (error) {
+    alert('删除失败: ' + error.message);
+  }
+};
+
+window.handleForumCardClick = function(event) {
+  const card = event.currentTarget;
+  const url = card.dataset.postUrl;
+  if (url && !event.target.closest('a')) {
+    window.location.href = url;
+  }
+};

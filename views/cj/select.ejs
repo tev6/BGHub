@@ -1,0 +1,18 @@
+<%- include('../partials/header') %>
+    <section class="page-title">
+        <span class="eyebrow">CJ</span>
+        <h1>选择学科编辑</h1>
+        <p>选择要编辑的学科</p>
+    </section>
+
+    <section class="layout-grid">
+        <div class="cj-select-grid">
+            <% boards.forEach(function(board) { %>
+                <a href="/cj/edit?subject=<%= board.slug %>" class="card cj-select-card">
+                    <h3><%= board.name %></h3>
+                    <span class="slug"><%= board.slug %></span>
+                </a>
+            <% }); %>
+        </div>
+    </section>
+<%- include('../partials/footer') %>

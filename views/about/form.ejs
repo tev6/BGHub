@@ -1,0 +1,54 @@
+<%- include('../partials/header') %>
+    <section class="page-title">
+        <span class="eyebrow" data-i18n="about.eyebrow">About Pages</span>
+        <h1 data-i18n="about.<%= mode === 'edit' ? 'editPage' : 'createPage' %>"><%= mode === 'edit' ? '编辑页面' : '新建关于页面' %></h1>
+    </section>
+
+    <section class="layout-grid">
+        <article class="card section-card content-main">
+            <% if (errors && errors.length) { %>
+                <div class="error-list">
+                    <% errors.forEach(function(error) { %>
+                        <div class="flash flash-error"><%= error %></div>
+                    <% }); %>
+                </div>
+            <% } %>
+
+            <form action="<%= mode === 'edit' ? `/about/${page.slug}/edit` : '/about' %>" method="POST" class="form-grid">
+                <label class="form-group">
+                    <span class="form-label" data-i18n="about.slugLabel">URL后缀</span>
+                    <div class="input-prefix">/about/</div>
+                    <input class="form-control" type="text" name="slug" value="<%= page ? page.slug : '' %>"
+                           <%= mode === 'edit' ? 'readonly' : '' %>
+                           data-i18n-placeholder="about.slugPlaceholder" placeholder="my-custom-page" required>
+                    <span class="form-hint" data-i18n="about.slugHint">3-50个字符，只能包含字母、数字、连字符(-)和下划线(_)</span>
+                </label>
+
+                <label class="form-group">
+                    <span class="form-label" data-i18n="about.titleLabel">标题</span>
+                    <input class="form-control" type="text" name="title" value="<%= page ? page.title : '' %>" data-i18n-placeholder="about.titlePlaceholder" placeholder="" required>
+                </label>
+
+                <label class="form-group">
+                    <span class="form-label" data-i18n="about.contentLabel">内容 (Markdown)</span>
+                    <textarea class="form-control" name="content" rows="20" data-i18n-placeholder="about.contentPlaceholder" placeholder=""><%= page ? page.content : '' %></textarea>
+                </label>
+
+                <label class="form-group form-group--checkbox">
+                    <input type="checkbox" name="is_published" value="1" <%= (!page || page.is_published) ? 'checked' : '' %>>
+                    <span data-i18n="about.publishLabel">发布</span>
+                </label>
+
+                <div class="action-row">
+                    <button class="btn btn-primary" type="submit" data-i18n="about.<%= mode === 'edit' ? 'saveChanges' : 'createPage' %>"><%= mode === 'edit' ? '保存修改' : '创建页面' %></button>
+                    <a class="btn btn-ghost" href="/about" data-i18n="common.cancel">取消</a>
+                    <% if (mode === 'edit') { %>
+                        <form action="/about/<%= page.slug %>/delete" method="POST" class="inline-form" onsubmit="return confirm('<%= locals.locale === "en" ? "Are you sure?" : "确定要删除吗？" %>');">
+                            <button type="submit" class="btn btn-danger" data-i18n="common.delete">删除</button>
+                        </form>
+                    <% } %>
+                </div>
+            </form>
+        </article>
+    </section>
+<%- include('../partials/footer') %>

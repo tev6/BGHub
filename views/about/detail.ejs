@@ -1,0 +1,26 @@
+<%- include('../partials/header') %>
+    <section class="page-content-section">
+        <article class="page-detail-card">
+            <div class="page-header">
+                <a href="/about" class="back-link">
+                    <span>&lsaquo;</span> <span data-i18n="common.back">返回</span>
+                </a>
+                <h1 class="page-title-main"><%= page.title %></h1>
+                <div class="page-meta">
+                    <span data-i18n="about.lastUpdated">最后更新</span>: <%= formatDate(page.updated_at, true) %>
+                </div>
+            </div>
+            <div class="markdown-body page-content">
+                <%- renderMarkdown(page.content) %>
+            </div>
+            <% if (locals.user && locals.user.role_level >= 6) { %>
+                <div class="page-actions">
+                    <a href="/about/<%= page.slug %>/edit" class="btn btn-ghost" data-i18n="common.edit">编辑</a>
+                    <form action="/about/<%= page.slug %>/delete" method="POST" class="inline-form" onsubmit="return confirm('<%= locals.locale === "en" ? "Are you sure?" : "确定要删除吗？" %>');">
+                        <button type="submit" class="btn btn-danger" data-i18n="common.delete">删除</button>
+                    </form>
+                </div>
+            <% } %>
+        </article>
+    </section>
+<%- include('../partials/footer') %>

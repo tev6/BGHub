@@ -82,7 +82,7 @@
                     <% } %>
                     <% if (results.sections.length) { %>
                         <% results.sections.forEach(section => { %>
-                            <a class="list-item" href="/boards/<%= section.slug %>">
+                            <a class="list-item" href="/cj/subject?subject=<%= section.slug %>">
                                 <strong><%= section.name %> · <%= section.title %></strong>
                                 <div class="meta-row">
                                     <span><%= section.section %></span>

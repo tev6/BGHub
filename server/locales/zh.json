@@ -1,10 +1,11 @@
 {
   "nav": {
     "home": "首页",
-    "forum": "互助广场",
+    "forum": "文章",
     "homeworks": "作业看板",
     "cj": "CJ",
-    "resources": "课件库",
+    "resources": "资源",
+    "about": "关于",
     "exams": "考试日历",
     "favorites": "收藏",
     "review": "审核",
@@ -25,6 +26,7 @@
     "post": "文章",
     "resource": "资源",
     "cj": "CJ",
+    "aboutPage": "关于页面",
     "search": "搜索",
     "filter": "筛选",
     "viewAll": "查看全部",
@@ -40,6 +42,8 @@
     "send": "发送",
     "download": "下载",
     "like": "点赞",
+    "liked": "已赞",
+    "report": "举报",
     "close": "关闭",
     "viewMore": "查看更多",
     "prevPage": "上一页",
@@ -58,7 +62,7 @@
   },
   "chat": {
     "title": "聊天",
-    "classGroup": "年级群",
+    "classGroup": "聊天区",
     "noMessages": "聊天区暂时还没有消息。",
     "placeholder": "按 Enter 发送，Shift+Enter 换行",
     "loginPrompt": "登录后可在聊天区发言。",
@@ -68,9 +72,9 @@
     "cooldownNotice": "请等待 {seconds} 秒后再发送消息"
   },
   "forum": {
-    "title": "互助广场",
+    "title": "文章",
     "description": "按学科筛选问题、笔记与资源分享，支持匿名提问、回复与已解决状态。",
-    "publishPost": "发布帖子",
+    "publishPost": "发布文章",
     "filterPlaceholder": "筛选帖子...",
     "noPosts": "没有符合条件的帖子，试试调整筛选条件或发布新问题。",
     "replies": "条回复",
@@ -120,6 +124,7 @@
     "icContent": "待补充",
     "hwContent": "待补充",
     "aContent": "待补充",
+    "emptyContent": "待补充",
     "viewMore": "查看更多",
     "maintainContent": "维护 CJ 内容",
     "save": "保存修改",
@@ -139,6 +144,31 @@
     "titlePlaceholder": "分区标题",
     "contentPlaceholder": "使用 Markdown 维护 CJ 内容",
     "saveContent": "保存 CJ"
+  },
+  "cj": {
+    "showAllClasses": "显示其他班",
+    "showMyClass": "仅显示本班",
+    "switchClass": "切换班级",
+    "viewingClass": "正在查看 {{class}} 班",
+    "editMyClassOnly": "只能编辑本班内容",
+    "classLabel": "班级"
+  },
+  "about": {
+    "title": "关于",
+    "eyebrow": "Information",
+    "description": "了解我们的社区准则、政策声明和网站信息。",
+    "noPages": "暂无内容",
+    "lastUpdated": "最后更新",
+    "slugLabel": "URL后缀",
+    "slugHint": "3-50个字符，只能包含字母、数字、连字符(-)和下划线(_)",
+    "titleLabel": "标题",
+    "titlePlaceholder": "页面标题",
+    "contentLabel": "内容 (Markdown)",
+    "contentPlaceholder": "使用 Markdown 格式编写内容...",
+    "publishLabel": "发布",
+    "createPage": "创建页面",
+    "editPage": "编辑页面",
+    "saveChanges": "保存修改"
   },
   "homeworks": {
     "title": "作业看板",
@@ -183,7 +213,7 @@
     "markPriority": "标记为重点"
   },
   "resources": {
-    "title": "课件库",
+    "title": "资源",
     "eyebrow": "Slide Library",
     "description": "按学科查看课件、PPT、笔记和复习资料，支持链接或本地文件上传。",
     "upload": "上传资源",
@@ -260,7 +290,7 @@
   "dashboard": {
     "title": "我的面板",
     "welcome": "欢迎回来，",
-    "credit": "积分",
+    "credit": "信用分",
     "currentLevel": "当前等级",
     "reviewsToday": "今日已审核",
     "reviewCount": "条",
@@ -295,7 +325,7 @@
     "contentReview": "内容审核",
     "userMgmt": "用户管理",
     "reviewGuide": "💡 审核指南",
-    "reviewReward": "正确审核他人内容可获得积分奖励：",
+    "reviewReward": "正确审核他人内容可获得信用分奖励：",
     "reward1": "每正确审核 10 条内容 +1 分",
     "reward2": "每日上限 +10 分",
     "reward3": "连续 7 天无违规 +2 分",
@@ -354,7 +384,7 @@
     "colEmail": "邮箱",
     "colGrade": "年级",
     "colLevel": "等级",
-    "colCredit": "积分",
+    "colCredit": "信用分",
     "colCreatedAt": "注册时间",
     "colStatus": "状态",
     "colActions": "操作",
@@ -405,7 +435,7 @@
     "title": "搜索结果",
     "keyword": "关键词",
     "notEntered": "(未输入)",
-    "forumPosts": "论坛帖子",
+    "forumPosts": "文章",
     "resources": "资源",
     "exams": "考试",
     "homeworksCJ": "作业 / CJ",
@@ -431,11 +461,13 @@
   },
   "footer": {
     "title": "BG Hub",
-    "description": "面向贝赛思学生的校园学习助手",
+    "description": "面向广贝学生的平台",
     "exams": "考试提醒",
     "homeworks": "作业条目",
     "resources": "共享资源",
-    "posts": "论坛帖子"
+    "posts": "论坛帖子",
+    "viewCountLabel": "本网站已被游览",
+    "viewCountSuffix": "次"
   },
   "errors": {
     "required": "此项为必填项",
@@ -452,11 +484,11 @@
     "grade": "年级",
     "registeredAt": "注册时间",
     "levelInfo": "等级信息",
-    "credit": "积分",
-    "creditHistory": "积分历史",
-    "noHistory": "暂无积分记录",
+    "credit": "信用分",
+    "creditHistory": "信用分历史",
+    "noHistory": "暂无信用分记录",
     "nextLevel": "距升级至",
-    "creditsNeeded": "积分",
+    "creditsNeeded": "信用分",
     "maxLevel": "已达到最高等级",
     "currentPermissions": "当前权限",
     "permChat": "在年级群发言",
@@ -469,7 +501,7 @@
     "permReview": "参与内容审核",
     "permReviewLocked": "参与内容审核（需 LV3）",
     "levelProgression": "等级权限说明",
-    "credits": "积分",
+    "credits": "信用分",
     "lv0Perms": "浏览、发言（审核）、受限功能",
     "lv1Perms": "连续发言、快速审核",
     "lv2Perms": "发布文章/笔记",
@@ -479,6 +511,7 @@
     "dangerZone": "危险区域",
     "deactivateWarning": "注销账户后，所有数据将被永久删除且无法恢复。",
     "deactivateAccount": "注销账户",
+    "usageGuide": "BGHub使用说明",
     "confirmDeactivate": "确认注销账户",
     "deactivatePrompt": "请输入密码以确认注销账户。",
     "passwordPlaceholder": "密码",
@@ -486,5 +519,11 @@
     "confirmLogout": "确认退出登录",
     "logoutPrompt": "确定要退出当前账号吗？",
     "confirmLogoutBtn": "确认退出"
+  },
+  "error": {
+    "title": "页面不存在",
+    "notFound": "抱歉，该页面不存在",
+    "notFoundMessage": "如果你正在寻找某文章，此文章可能已被删除或你输入了错误的地址。",
+    "backHome": "返回主页"
   }
 }

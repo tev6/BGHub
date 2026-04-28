@@ -18,9 +18,9 @@
           </div>
           <p class="cj-card-copy">{{ board.description }}</p>
           <div class="cj-card-meta">
-            <div><span>IC</span><span>{{ excerpt(board.sections.IC?.content, 36) }}</span></div>
-            <div><span>HW</span><span>{{ excerpt(board.sections.HW?.content, 36) }}</span></div>
-            <div><span>A</span><span>{{ excerpt(board.sections.A?.content, 36) }}</span></div>
+            <div><span>IC</span><span>{{ formatExcerpt(board.sections.IC?.content) }}</span></div>
+            <div><span>HW</span><span>{{ formatExcerpt(board.sections.HW?.content) }}</span></div>
+            <div><span>A</span><span>{{ formatExcerpt(board.sections.A?.content) }}</span></div>
           </div>
         </a>
       </div>
@@ -29,6 +29,8 @@
 </template>
 
 <script>
+import { excerpt } from '../utils/text.js';
+
 export default {
   name: 'CJPanel',
   props: {
@@ -38,10 +40,8 @@ export default {
     }
   },
   methods: {
-    excerpt(content, length) {
-      if (!content) return '待补充';
-      const plain = content.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-      return plain.length <= length ? plain : `${plain.slice(0, length)}…`;
+    formatExcerpt(content, length = 36) {
+      return excerpt(content, length, '待补充');
     }
   }
 };

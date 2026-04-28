@@ -1,0 +1,23 @@
+{
+  "name": "bghub-maintenance",
+  "version": "1.0.0",
+  "description": "BGHub 维护页面独立服务器",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "start:maintenance": "node app.js --page maintenance",
+    "start:update": "node app.js --page update",
+    "start:service-off": "node app.js --page service-off",
+    "help": "node app.js --help"
+  },
+  "keywords": [
+    "maintenance",
+    "bghub",
+    "status-page"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}

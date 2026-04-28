@@ -1,7 +1,7 @@
 <%- include('partials/header') %>
     <section class="page-title">
         <span class="eyebrow" data-i18n="chat.title">聊天</span>
-        <h1 data-i18n="chat.classGroup">班级群</h1>
+        <h1 data-i18n="chat.classGroup">聊天区</h1>
     </section>
 
     <section class="full-chat-page">
@@ -11,13 +11,22 @@
                     <% chatMessages.forEach(message => { %>
                         <div class="chat-bubble" data-message-id="<%= message.id %>">
                             <div class="chat-bubble-head">
-                                <strong><%= message.author_name %></strong>
+                                <strong><%= message.author_name || '游客' %></strong>
                                 <span><%= formatDate(message.created_at, true) %></span>
-                                <% if (user && user.id !== message.user_id) { %>
+                                <% if (user && message.user_id && (user.id === message.user_id || user.role_level === 6)) { %>
+                                    <form action="/chat/messages/<%= message.id %>/delete" method="POST" style="display:inline;">
+                                        <button type="submit" class="btn btn-ghost btn-xs chat-delete-btn" title="删除" onclick="return confirm('确定删除这条消息？')">🗑️</button>
+                                    </form>
+                                <% } else if (user && message.user_id && user.id !== message.user_id) { %>
                                     <button class="btn btn-ghost btn-xs chat-report-btn" type="button" onclick="showReportModal('chat', <%= message.id %>)" title="举报">🚩</button>
                                 <% } %>
                             </div>
                             <p><%= message.content %></p>
+                            <% if (message.status === 'pending' || message.is_pending) { %>
+                                <div class="chat-bubble-status">
+                                    <span class="chat-status-pending">⏳ 审核中</span>
+                                </div>
+                            <% } %>
                         </div>
                     <% }) %>
                 <% } else { %>
@@ -25,29 +34,39 @@
                 <% } %>
             </div>
 
-            <% if (user) { %>
-                <form class="chat-form chat-form-full" data-chat-form id="chat-form">
-                    <textarea class="form-control" name="content" rows="2"
-                        placeholder="按 Enter 发送，Shift+Enter 换行"
-                        data-i18n-placeholder="chat.placeholder"
-                        data-chat-textarea id="chat-textarea" required></textarea>
-                    <button class="btn btn-primary" type="submit" data-i18n="common.send" data-chat-submit-btn>发送</button>
-                    <div class="chat-error" data-chat-error hidden></div>
-                    <div class="chat-pending" data-chat-pending hidden></div>
-                    <div class="chat-cooldown" data-chat-cooldown hidden></div>
-                </form>
-                <% if (user.role_level <= 1) { %>
+            <div class="chat-status-bar" data-chat-pending hidden>
+                <span class="chat-status-icon">⏳</span>
+                <span class="chat-status-text"></span>
+            </div>
+
+            <div class="chat-error" data-chat-error hidden></div>
+
+            <form class="chat-form chat-form-full" data-chat-form id="chat-form">
+                <textarea class="form-control" name="content" rows="2"
+                    placeholder="按 Enter 发送，Shift+Enter 换行"
+                    data-i18n-placeholder="chat.placeholder"
+                    data-chat-textarea id="chat-textarea" required></textarea>
+                <div class="chat-form-actions">
+                    <button type="submit" class="btn btn-primary" data-chat-submit-btn data-i18n="chat.send">发送</button>
+                </div>
+
+                <% if (!user) { %>
+                <div class="chat-audit-notice">
+                    <span class="chat-audit-icon">ℹ️</span>
+                    <span data-i18n="chat.auditNoticeUnauth">未登录用户发送的消息需经过 AI 审核，审核通过后将显示在聊天区。</span>
+                </div>
+                <% } else if (user.role_level === 0) { %>
+                <div class="chat-audit-notice">
+                    <span class="chat-audit-icon">ℹ️</span>
+                    <span data-i18n="chat.auditNoticeLV0">您的消息发送前需经过 AI 审核，审核完成后可以发布下一条。</span>
+                </div>
+                <% } else if (user.role_level === 1) { %>
                 <div class="chat-audit-notice">
                     <span class="chat-audit-icon">ℹ️</span>
                     <span data-i18n="chat.auditNotice">您的消息发送前需经过 AI 审核，审核通过后将显示在聊天区。</span>
                 </div>
                 <% } %>
-            <% } else { %>
-                <div class="chat-login-prompt">
-                    <p data-i18n="chat.loginPrompt">登录后可在聊天区发言。</p>
-                    <a href="/login" class="btn btn-primary" data-i18n="nav.login">登录</a>
-                </div>
-            <% } %>
+            </form>
         </div>
     </section>
 
@@ -57,6 +76,94 @@
         if (chatStream) {
             chatStream.scrollTop = chatStream.scrollHeight;
         }
+
+        var currentUserId = <%= JSON.stringify(user ? user.id : null) %>;
+        if (currentUserId && window.WebSocket) {
+            var wsProtocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
+            var ws = new WebSocket(wsProtocol + location.host + '?userId=' + currentUserId);
+
+            ws.onopen = function() {
+                console.log('[Chat] WebSocket 已连接');
+            };
+
+            ws.onmessage = function(event) {
+                var data = JSON.parse(event.data);
+                console.log('[Chat] 收到消息:', data);
+
+                if (data.type === 'chat_approved') {
+                    var chatForm = document.getElementById('chat-form');
+                    if (chatForm) chatForm.style.display = '';
+                    location.reload();
+                } else if (data.type === 'chat_rejected') {
+                    var errorEl = document.querySelector('[data-chat-error]');
+                    if (errorEl) {
+                        errorEl.textContent = '消息未通过审核: ' + (data.reason || '内容违规');
+                        errorEl.hidden = false;
+                        setTimeout(function() { errorEl.hidden = true; }, 5000);
+                    }
+                    var chatForm = document.getElementById('chat-form');
+                    if (chatForm) chatForm.style.display = '';
+                    var textArea = document.getElementById('chat-textarea');
+                    var submitBtn = document.querySelector('[data-chat-submit-btn]');
+                    if (textArea) textArea.disabled = false;
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = '发送';
+                    }
+                }
+            };
+
+            ws.onclose = function() {
+                console.log('[Chat] WebSocket 已断开');
+            };
+
+            window.chatSocket = ws;
+        }
+
+        <% if (!user) { %>
+        var pollInterval = null;
+
+        function pollMessageStatus(messageId) {
+            if (pollInterval) clearInterval(pollInterval);
+
+            pollInterval = setInterval(function() {
+                fetch('/api/chat/messages/' + messageId + '/status')
+                    .then(function(res) { return res.json(); })
+                    .then(function(data) {
+                        if (data.status === 'approved') {
+                            clearInterval(pollInterval);
+                            location.reload();
+                        } else if (data.status === 'rejected') {
+                            clearInterval(pollInterval);
+                            var errorEl = document.querySelector('[data-chat-error]');
+                            if (errorEl) {
+                                errorEl.textContent = '消息未通过审核: ' + (data.reason || '内容违规');
+                                errorEl.hidden = false;
+                                setTimeout(function() { errorEl.hidden = true; }, 5000);
+                            }
+                            var chatForm = document.getElementById('chat-form');
+                            if (chatForm) chatForm.style.display = '';
+                            var textArea = document.getElementById('chat-textarea');
+                            var submitBtn = document.querySelector('[data-chat-submit-btn]');
+                            if (textArea) textArea.disabled = false;
+                            if (submitBtn) {
+                                submitBtn.disabled = false;
+                                submitBtn.textContent = '发送';
+                            }
+                        }
+                    })
+                    .catch(function(err) {
+                        console.error('[Chat] 轮询错误:', err);
+                    });
+            }, 2000);
+
+            setTimeout(function() {
+                if (pollInterval) clearInterval(pollInterval);
+            }, 30000);
+        }
+
+        window.pollMessageStatus = pollMessageStatus;
+        <% } %>
     });
     </script>
 
@@ -93,19 +200,44 @@
     .chat-form-full textarea {
         flex: 1;
     }
-    .chat-login-prompt {
-        padding: 1rem;
-        background: var(--background);
-        border-top: 1px solid var(--line);
-        text-align: center;
-    }
-    .chat-login-prompt p {
-        margin-bottom: 0.75rem;
-    }
-    .chat-report-btn {
-        margin-left: auto;
+    .chat-report-btn,
+    .chat-delete-btn {
+        margin-left: 4px;
         padding: 0.1rem 0.3rem;
         font-size: 0.75rem;
+    }
+    .chat-bubble-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .chat-bubble-status {
+        margin-top: 4px;
+    }
+    .chat-status-pending {
+        color: var(--warning);
+        font-size: 0.85rem;
+    }
+    .chat-status-bar {
+        padding: 0.5rem 1rem;
+        background: var(--info-bg, #e3f2fd);
+        color: var(--info-color, #1976d2);
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .chat-status-bar[hidden] {
+        display: none;
+    }
+    .chat-error {
+        padding: 0.5rem 1rem;
+        background: var(--danger-bg, #ffebee);
+        color: var(--danger-color, #c62828);
+        font-size: 0.9rem;
+    }
+    .chat-error[hidden] {
+        display: none;
     }
     </style>
 <%- include('report-modal') %>

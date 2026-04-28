@@ -7,22 +7,25 @@
 
     <section class="cj-date-selector card">
         <div class="date-nav-row">
-            <a href="/boards/<%= detail.board.slug %>?date=<%= dateNavData.prevDate %>" class="btn btn-ghost date-nav-btn">
+            <button type="button" id="cj-prev-btn" class="btn btn-ghost date-nav-btn" data-date="<%= dateNavData.prevDate %>">
                 <span>‹</span>
-            </a>
-            <span class="date-nav-current">
+            </button>
+            <span class="date-nav-current" id="cj-date-display">
                 <%= dateNavData.display %>
             </span>
-            <a href="/boards/<%= detail.board.slug %>?date=<%= dateNavData.nextDate %>" class="btn btn-ghost date-nav-btn <%= dateNavData.isFuture ? 'disabled' : '' %>" <%= dateNavData.isFuture ? 'aria-disabled="true"' : '' %>>
+            <button type="button" id="cj-next-btn" class="btn btn-ghost date-nav-btn <%= dateNavData.isFuture ? 'disabled' : '' %>" data-date="<%= dateNavData.nextDate %>" <%= dateNavData.isFuture ? 'aria-disabled="true"' : ''%>>
                 <span>›</span>
-            </a>
+            </button>
+            <% if (user && user.role_level >= 1) { %>
+                <button type="button" id="cj-edit-btn" class="btn btn-ghost" style="margin-left: auto;">✏️ 编辑</button>
+            <% } %>
         </div>
     </section>
 
     <section class="cj-content">
         <div class="content-stack">
             <% ['IC', 'HW', 'A'].forEach(sectionKey => { %>
-                <article class="card section-card">
+                <article class="card section-card" data-section="<%= sectionKey %>">
                     <div class="panel-head">
                         <div>
                             <span class="eyebrow" data-i18n="board.<%= sectionKey.toLowerCase() %>"><%= locale === 'en' ? sectionTitlesEn[sectionKey] : sectionTitles[sectionKey] %></span>
@@ -39,4 +42,23 @@
             <% }) %>
         </div>
     </section>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const initialDate = '<%= dateNavData.isToday && !dateStr ? "" : (dateStr || new Date().toISOString().split("T")[0]) %>';
+        const todayStr = new Date().toISOString().split('T')[0];
+        const currentDate = initialDate || todayStr;
+
+        CJDateNav.init('<%= detail.board.slug %>', currentDate, '<%= locale %>');
+
+        const editBtn = document.getElementById('cj-edit-btn');
+        if (editBtn) {
+            editBtn.addEventListener('click', function() {
+                const dateToEdit = CJDateNav.getCurrentDate();
+                window.location.href = '/cj/edit?subject=<%= detail.board.slug %>&date=' + dateToEdit;
+            });
+        }
+    });
+    </script>
+    <script src="/js/board-date-nav.js"></script>
 <%- include('partials/footer') %>

@@ -1,0 +1,108 @@
+<%- include('../partials/header') %>
+    <section class="page-title">
+        <span class="eyebrow">CJ</span>
+        <h1>CJ 内容中心</h1>
+        <p>查看每日学科教学内容</p>
+    </section>
+
+    <% if (gradeContext && ['G6', 'G7', 'G8'].includes(gradeContext.grade)) { %>
+    <div class="cj-class-controls">
+        <div class="class-switcher">
+            <button type="button" class="class-switcher-btn active" data-class="mine" data-i18n="cj.showMyClass">
+                仅显示本班
+            </button>
+            <button type="button" class="class-switcher-btn" data-class="all" data-i18n="cj.showAllClasses">
+                显示其他班
+            </button>
+        </div>
+    </div>
+    <% } %>
+
+    <% if (!user) { %>
+    <div class="grade-selector" id="grade-selector">
+        <div class="grade-selector-row">
+            <select id="guest-grade-select" class="form-control">
+                <option value="">选择年级</option>
+                <option value="G6">G6</option>
+                <option value="G7">G7</option>
+                <option value="G8">G8</option>
+                <option value="G9">G9</option>
+                <option value="G10">G10</option>
+                <option value="G11">G11</option>
+                <option value="G12">G12</option>
+            </select>
+            <select id="guest-class-select" class="form-control" style="display:none;">
+                <option value="">选择班级</option>
+            </select>
+            <button type="button" id="grade-confirm-btn" class="btn btn-primary btn-sm">确认</button>
+        </div>
+    </div>
+    <% } %>
+
+    <section class="cj-date-bar card">
+        <div class="date-nav-row">
+            <a href="/cj?date=<%= prevDate %>" class="btn btn-ghost date-nav-btn">
+                <span>‹</span>
+            </a>
+            <span class="date-nav-current"><%= dateDisplay %></span>
+            <a href="/cj?date=<%= nextDate %>" class="btn btn-ghost date-nav-btn <%= isFuture ? 'disabled' : '' %>" <%= isFuture ? 'aria-disabled="true"' : ''%>>
+                <span>›</span>
+            </a>
+            <% if (user && user.role_level >= 1) { %>
+                <a href="/cj/edit" class="btn btn-ghost" style="margin-left: auto;">✏️ 编辑 CJ</a>
+            <% } %>
+        </div>
+    </section>
+
+    <section class="cj-grid">
+        <% boards.forEach(function(board) { %>
+            <a href="/cj/subject?subject=<%= board.slug %>" class="cj-card card">
+                <div class="cj-card-header">
+                    <h3><%= (locale === 'en' && (board.display_name_en || board.name_en)) ? (board.display_name_en || board.name_en) : (board.display_name || board.name) %></h3>
+                    <span class="cj-card-slug"><%= board.slug %></span>
+                </div>
+                <div class="cj-card-preview">
+                    <% ['IC', 'HW', 'A'].forEach(function(sectionKey) { %>
+                        <div class="cj-preview-item">
+                            <span class="cj-preview-label"><%= sectionTitles[sectionKey] || sectionKey %></span>
+                            <span class="cj-preview-content <%= board.sections[sectionKey] && board.sections[sectionKey].content ? '' : 'empty' %>">
+                                <%= board.sections[sectionKey] && board.sections[sectionKey].content ? excerpt(board.sections[sectionKey].content, 40) : '待补充' %>
+                            </span>
+                        </div>
+                    <% }); %>
+                </div>
+            </a>
+        <% }); %>
+    </section>
+
+    <script>
+    (function() {
+        var switcherBtns = document.querySelectorAll('.class-switcher-btn');
+        switcherBtns.forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var showAll = this.getAttribute('data-class') === 'all';
+                var url = new URL(window.location.href);
+                if (showAll) {
+                    url.searchParams.set('showAllClasses', 'true');
+                } else {
+                    url.searchParams.delete('showAllClasses');
+                }
+                window.location.href = url.toString();
+            });
+        });
+        
+        var urlParams = new URLSearchParams(window.location.search);
+        var showAllClasses = urlParams.get('showAllClasses') === 'true';
+        switcherBtns.forEach(function(btn) {
+            var isAll = btn.getAttribute('data-class') === 'all';
+            if (showAllClasses && isAll) {
+                btn.classList.add('active');
+            } else if (!showAllClasses && !isAll) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+    })();
+    </script>
+<%- include('../partials/footer') %>

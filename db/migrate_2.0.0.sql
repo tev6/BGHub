@@ -58,7 +58,7 @@ INSERT OR IGNORE INTO roles (level, min_credit, name, badge_color, is_admin) VAL
 -- =====================================================
 CREATE TABLE IF NOT EXISTS review_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    item_type TEXT NOT NULL CHECK (item_type IN ('post', 'chat', 'resource')),
+    item_type TEXT NOT NULL CHECK (item_type IN ('post', 'chat', 'resource', 'homework')),
     item_id INTEGER NOT NULL,
     payload TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),

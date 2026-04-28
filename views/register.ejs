@@ -3,8 +3,6 @@
         <article class="card auth-card">
             <span class="eyebrow">创建账号</span>
             <h1 data-i18n="auth.registerTitle">加入 BG Hub</h1>
-            <p class="helper-text">首个注册用户将自动成为管理员，便于继续推进校园论坛重构与内容录入。</p>
-
             <% if (errors && errors.length) { %>
                 <div class="error-list">
                     <% errors.forEach(error => { %>
@@ -32,12 +30,19 @@
                 </label>
                 <label class="form-group">
                     <span class="form-label">年级</span>
-                    <select name="grade" class="form-control" required>
+                    <select name="grade" class="form-control" id="grade-select" required>
                         <option value="">选择年级</option>
                         <% ['G6','G7','G8','G9','G10','G11','G12'].forEach(gradeOption => { %>
                             <option value="<%= gradeOption %>" <%= formData && formData.grade === gradeOption ? 'selected' : '' %>><%= gradeOption %></option>
                         <% }) %>
                     </select>
+                </label>
+                <label class="form-group" id="class-name-group" style="display: none;">
+                    <span class="form-label">班级</span>
+                    <select name="class_name" class="form-control" id="class-select">
+                        <option value="">选择班级</option>
+                    </select>
+                    <span class="helper-text" id="class-loading-msg" style="color: var(--muted); display: none;">加载班级中...</span>
                 </label>
                 <label class="form-group">
                     <span class="form-label">密码</span>
@@ -48,7 +53,17 @@
                     <input type="password" name="confirmPassword" id="confirmPassword" class="form-control" placeholder="再次输入密码" required>
                     <span class="helper-text" id="password-match-error" style="color: var(--danger); display: none;">两次输入的密码不一致</span>
                 </label>
-                <button type="submit" class="btn btn-primary btn-block">创建账号</button>
+                <div class="terms-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="terms-checkbox" required>
+                        <span>I have read and agreed to the <a href="/about/terms-of-service" target="_blank">Terms of Service</a></span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="privacy-checkbox" required>
+                        <span>I have read and accept the <a href="/about/privacy-policy" target="_blank">Privacy Policy</a></span>
+                    </label>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block" id="submit-btn" disabled>创建账号</button>
             </form>
 
             <script>
@@ -56,6 +71,8 @@
                 var password = document.getElementById('password').value;
                 var confirmPassword = document.getElementById('confirmPassword').value;
                 var errorEl = document.getElementById('password-match-error');
+                var gradeSelect = document.getElementById('grade-select');
+                var classSelect = document.getElementById('class-select');
 
                 if (password !== confirmPassword) {
                     e.preventDefault();
@@ -63,6 +80,19 @@
                     return false;
                 }
                 errorEl.style.display = 'none';
+
+                if (['G6', 'G7', 'G8'].includes(gradeSelect.value) && !classSelect.value) {
+                    e.preventDefault();
+                    alert('请选择班级');
+                    return false;
+                }
+
+                if (!termsCheckbox.checked || !privacyCheckbox.checked) {
+                    e.preventDefault();
+                    alert('请阅读并同意服务条款和隐私政策');
+                    return false;
+                }
+
                 return true;
             });
 
@@ -105,6 +135,74 @@
                     btn.textContent = '重新发送';
                 }
             });
+
+            var gradeSelect = document.getElementById('grade-select');
+            var classGroup = document.getElementById('class-name-group');
+            var classSelect = document.getElementById('class-select');
+            var classLoadingMsg = document.getElementById('class-loading-msg');
+            var termsCheckbox = document.getElementById('terms-checkbox');
+            var privacyCheckbox = document.getElementById('privacy-checkbox');
+            var submitBtn = document.getElementById('submit-btn');
+
+            function updateSubmitButton() {
+                if (submitBtn) {
+                    submitBtn.disabled = !(termsCheckbox.checked && privacyCheckbox.checked);
+                }
+            }
+
+            if (termsCheckbox) {
+                termsCheckbox.addEventListener('change', updateSubmitButton);
+            }
+            if (privacyCheckbox) {
+                privacyCheckbox.addEventListener('change', updateSubmitButton);
+            }
+
+            async function loadClassesForGrade(grade) {
+                if (!grade || !['G6', 'G7', 'G8'].includes(grade)) {
+                    classGroup.style.display = 'none';
+                    classSelect.required = false;
+                    return;
+                }
+
+                classGroup.style.display = 'block';
+                classSelect.required = true;
+                classLoadingMsg.style.display = 'block';
+                classSelect.innerHTML = '<option value="">加载中...</option>';
+
+                try {
+                    var res = await fetch('/api/grades/classes?grade=' + encodeURIComponent(grade));
+                    var data = await res.json();
+
+                    if (!res.ok) {
+                        throw new Error(data.error || '加载失败');
+                    }
+
+                    var classes = data.classes || [];
+                    if (classes.length === 0) {
+                        classSelect.innerHTML = '<option value="">该年级暂无班级配置</option>';
+                    } else {
+                        classSelect.innerHTML = '<option value="">选择班级</option>';
+                        classes.forEach(function(cls) {
+                            var option = document.createElement('option');
+                            option.value = cls.class_name;
+                            option.textContent = 'Class ' + cls.class_name;
+                            classSelect.appendChild(option);
+                        });
+                    }
+                } catch (err) {
+                    classSelect.innerHTML = '<option value="">加载失败</option>';
+                } finally {
+                    classLoadingMsg.style.display = 'none';
+                }
+            }
+
+            gradeSelect.addEventListener('change', function() {
+                loadClassesForGrade(this.value);
+            });
+
+            if (gradeSelect.value && ['G6', 'G7', 'G8'].includes(gradeSelect.value)) {
+                loadClassesForGrade(gradeSelect.value);
+            }
             </script>
 
             <div class="auth-footer">

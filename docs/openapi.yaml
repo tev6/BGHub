@@ -180,6 +180,139 @@ paths:
                     items:
                       $ref: '#/components/schemas/Board'
 
+  /cj:
+    get:
+      summary: 获取CJ首页
+      tags:
+        - CJ
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 日期筛选（YYYY-MM-DD格式）
+      responses:
+        '200':
+          description: CJ首页数据
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /cj/subject:
+    get:
+      summary: 获取学科CJ详情
+      tags:
+        - CJ
+      parameters:
+        - name: subject
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 学科slug（如 mathematics、physics）
+        - name: date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 日期筛选
+      responses:
+        '200':
+          description: 学科CJ详情页
+        '404':
+          description: 学科不存在
+
+  /cj/edit:
+    get:
+      summary: 获取CJ编辑页
+      tags:
+        - CJ
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: CJ编辑页
+        '401':
+          description: 未登录
+        '403':
+          description: 权限不足（需要LV3+）
+
+    post:
+      summary: 提交CJ编辑
+      tags:
+        - CJ
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - subject
+              properties:
+                subject:
+                  type: string
+                  description: 学科slug
+                date:
+                  type: string
+                  format: date
+                  description: 日期（留空为今天）
+                content_ic:
+                  type: string
+                  description: IC内容
+                content_hw:
+                  type: string
+                  description: HW内容
+                content_a:
+                  type: string
+                  description: A内容
+      responses:
+        '302':
+          description: 保存成功，跳转详情页
+        '400':
+          description: 参数错误
+        '403':
+          description: 权限不足
+
+  /cj/api:
+    get:
+      summary: 获取CJ数据（JSON API）
+      tags:
+        - CJ
+      parameters:
+        - name: subject
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 学科slug
+        - name: date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 日期筛选
+      responses:
+        '200':
+          description: CJ数据
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  board:
+                    $ref: '#/components/schemas/Board'
+                  sections:
+                    type: object
+                    additionalProperties:
+                      $ref: '#/components/schemas/CJSection'
+        '400':
+          description: 缺少subject参数
+
   /api/forum/posts:
     get:
       summary: 获取帖子列表
@@ -995,6 +1128,29 @@ components:
           format: date-time
         created_at_display:
           type: string
+
+    CJSection:
+      type: object
+      properties:
+        id:
+          type: integer
+        board_id:
+          type: integer
+        section:
+          type: string
+          enum: [IC, HW, A]
+        section_date:
+          type: string
+          format: date
+        title:
+          type: string
+        content:
+          type: string
+        updated_by:
+          type: integer
+        updated_at:
+          type: string
+          format: date-time
 
     ReviewItem:
       type: object

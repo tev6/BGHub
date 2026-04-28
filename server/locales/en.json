@@ -5,6 +5,7 @@
     "homeworks": "Homework",
     "cj": "CJ",
     "resources": "Resources",
+    "about": "About",
     "exams": "Exams",
     "favorites": "Favorites",
     "review": "Review",
@@ -25,6 +26,7 @@
     "post": "Post",
     "resource": "Resource",
     "cj": "CJ",
+    "aboutPage": "About Page",
     "search": "Search",
     "filter": "Filter",
     "viewAll": "View All",
@@ -40,6 +42,8 @@
     "send": "Send",
     "download": "Download",
     "like": "Like",
+    "liked": "Liked",
+    "report": "Report",
     "close": "Close",
     "viewMore": "View More",
     "prevPage": "Previous",
@@ -58,7 +62,7 @@
   },
   "chat": {
     "title": "Chat",
-    "classGroup": "Grade Group",
+    "classGroup": "Chat Area",
     "noMessages": "No messages in chat yet.",
     "placeholder": "Press Enter to send, Shift+Enter for new line",
     "loginPrompt": "Login to join the chat.",
@@ -120,6 +124,7 @@
     "icContent": "To be added",
     "hwContent": "To be added",
     "aContent": "To be added",
+    "emptyContent": "To be added",
     "viewMore": "View More",
     "maintainContent": "Maintain CJ Content",
     "save": "Save Changes",
@@ -139,6 +144,31 @@
     "titlePlaceholder": "Section title",
     "contentPlaceholder": "Use Markdown to maintain CJ content",
     "saveContent": "Save CJ"
+  },
+  "cj": {
+    "showAllClasses": "Show Other Classes",
+    "showMyClass": "Show My Class Only",
+    "switchClass": "Switch Class",
+    "viewingClass": "Viewing Class {{class}}",
+    "editMyClassOnly": "Can only edit your own class",
+    "classLabel": "Class"
+  },
+  "about": {
+    "title": "About",
+    "eyebrow": "Information",
+    "description": "Learn about our community guidelines, policy statements, and website information.",
+    "noPages": "No content yet",
+    "lastUpdated": "Last Updated",
+    "slugLabel": "URL Suffix",
+    "slugHint": "3-50 characters, only letters, numbers, hyphens (-) and underscores (_)",
+    "titleLabel": "Title",
+    "titlePlaceholder": "Page title",
+    "contentLabel": "Content (Markdown)",
+    "contentPlaceholder": "Write content in Markdown format...",
+    "publishLabel": "Publish",
+    "createPage": "Create Page",
+    "editPage": "Edit Page",
+    "saveChanges": "Save Changes"
   },
   "homeworks": {
     "title": "Homework Board",
@@ -435,7 +465,9 @@
     "exams": "Exam Reminders",
     "homeworks": "Homework Items",
     "resources": "Shared Resources",
-    "posts": "Forum Posts"
+    "posts": "Forum Posts",
+    "viewCountLabel": "This site has been viewed",
+    "viewCountSuffix": "times"
   },
   "errors": {
     "required": "This field is required",
@@ -479,6 +511,7 @@
     "dangerZone": "Danger Zone",
     "deactivateWarning": "Once deactivated, all data will be permanently deleted and cannot be recovered.",
     "deactivateAccount": "Deactivate Account",
+    "usageGuide": "BGHub Usage Guide",
     "confirmDeactivate": "Confirm Deactivation",
     "deactivatePrompt": "Enter your password to confirm account deactivation.",
     "passwordPlaceholder": "Password",
@@ -486,5 +519,11 @@
     "confirmLogout": "Confirm Logout",
     "logoutPrompt": "Are you sure you want to log out?",
     "confirmLogoutBtn": "Log Out"
+  },
+  "error": {
+    "title": "Page Not Found",
+    "notFound": "Sorry, this page does not exist",
+    "notFoundMessage": "If you are looking for an article, it may have been deleted or you entered an incorrect address.",
+    "backHome": "Back to Home"
   }
 }

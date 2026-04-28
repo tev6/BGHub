@@ -1,0 +1,24 @@
+<%- include('../partials/header') %>
+    <section class="page-title">
+        <span class="eyebrow" data-i18n="about.eyebrow">Information</span>
+        <h1 data-i18n="about.title">关于</h1>
+        <p data-i18n="about.description">了解我们的社区准则、政策声明和网站信息。</p>
+    </section>
+
+    <section class="layout-grid">
+        <div class="content-stack">
+            <div class="about-list">
+                <% if (pages.length === 0) { %>
+                    <div class="empty-state" data-i18n="about.noPages">暂无内容</div>
+                <% } else { %>
+                    <% pages.forEach(function(page) { %>
+                        <a href="/about/<%= page.slug %>" class="about-item card">
+                            <span class="about-item-title"><%= page.title %></span>
+                            <span class="about-item-arrow">›</span>
+                        </a>
+                    <% }); %>
+                <% } %>
+            </div>
+        </div>
+    </section>
+<%- include('../partials/footer') %>

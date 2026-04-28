@@ -13,7 +13,7 @@
                             <span class="board-dot" style="background:<%= board.color %>"></span>
                             <strong><%= board.name %></strong>
                         </div>
-                        <a href="/boards/<%= board.slug %>" class="btn btn-primary" data-i18n="cj.editBoard">编辑</a>
+                        <a href="/cj/edit?subject=<%= board.slug %>" class="btn btn-primary" data-i18n="cj.editBoard">编辑</a>
                     </div>
                     <p><%= board.description %></p>
                 </article>

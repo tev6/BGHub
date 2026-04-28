@@ -2,7 +2,7 @@
     <section class="page-title">
         <span class="eyebrow">Forum Detail</span>
         <h1><%= post.title %></h1>
-        <p><%= post.board_name %> · <%= post.post_type %> · <%= post.is_anonymous ? '匿名同学' : post.author_name %></p>
+        <p><%= post.board_name %> · <%= post.is_anonymous ? '匿名同学' : post.author_name %></p>
     </section>
 
     <section class="layout-grid">
@@ -10,20 +10,36 @@
             <article class="card detail-card">
                 <div class="tag-row">
                     <span class="tag"><%= post.board_name %></span>
-                    <span class="tag"><%= post.post_type %></span>
+                    <% if (post.review_status === 'pending') { %>
+                        <span class="tag tag-warning">审核中</span>
+                    <% } else if (post.review_status === 'rejected') { %>
+                        <span class="tag tag-danger">已驳回</span>
+                    <% } %>
                 </div>
                 <div class="meta-row">
                     <span><%= post.author_name %></span>
                     <span><%= formatDate(post.created_at, true) %></span>
                     <span><%= post.view_count %> 次浏览</span>
                 </div>
+                <% if (post.review_status === 'pending' && user && (user.id === post.user_id || isStaff(user))) { %>
+                    <div class="flash flash-info" style="margin-bottom: 1rem;">
+                        <strong>⏳ AI审核已通过</strong> — 帖子正在等待人工审核，请耐心等待。审核结果将在通知中心显示。
+                    </div>
+                <% } else if (post.review_status === 'rejected' && user && (user.id === post.user_id || isStaff(user))) { %>
+                    <div class="flash flash-error" style="margin-bottom: 1rem;">
+                        <strong>❌ 未通过审核</strong> — 您的帖子未通过审核。如有疑问可在申诉区发起申诉。
+                    </div>
+                <% } %>
                 <div class="markdown-body">
                     <%- renderMarkdown(post.content) %>
                 </div>
 
-                <% if (user && (user.id === post.user_id || isStaff(user))) { %>
+                <% const canModify = user && (user.id === post.user_id || user.role_level >= 6); %>
+                <% if (canModify) { %>
                     <div class="forum-actions">
-                        <a href="/forum/<%= post.id %>/edit" class="btn btn-ghost">编辑帖子</a>
+                        <% if (user.id === post.user_id) { %>
+                            <a href="/forum/<%= post.id %>/edit" class="btn btn-ghost">编辑帖子</a>
+                        <% } %>
                         <form action="/forum/<%= post.id %>/delete" method="POST" data-confirm="确认删除该帖子吗？">
                             <button class="btn btn-danger" type="submit" data-i18n="common.delete">删除帖子</button>
                         </form>
@@ -59,7 +75,7 @@
             </article>
 
             <% if (user) { %>
-                <article class="card detail-card">
+                <article class="card detail-card" id="reply-section">
                     <h2 data-i18n="forum.postReply">发布回复</h2>
                     <form class="form-grid" action="/forum/<%= post.id %>/comments" method="POST">
                         <textarea class="form-control" name="content" rows="6" placeholder="用 Markdown 回复问题或补充笔记" required></textarea>
@@ -77,14 +93,65 @@
                 <div class="key-value-list">
                     <div class="key-value-item"><span data-i18n="common.author">作者</span><span><%= post.is_anonymous ? '匿名同学' : post.author_name %></span></div>
                     <div class="key-value-item"><span data-i18n="common.subject">学科</span><span><%= post.board_name %></span></div>
-                    <div class="key-value-item"><span data-i18n="common.type">类型</span><span><%= post.post_type %></span></div>
                     <div class="key-value-item"><span data-i18n="common.publishTime">发布时间</span><span><%= formatDate(post.created_at, true) %></span></div>
+                    <div class="key-value-item"><span>点赞</span><span id="like-count"><%= post.like_count || 0 %></span></div>
                 </div>
-                <% if (user && user.id !== post.user_id) { %>
-                    <button class="btn btn-ghost btn-sm" type="button" onclick="showReportModal('post', <%= post.id %>)" title="举报该帖子">🚩 <span data-i18n="common.report">举报</span></button>
-                <% } %>
+                <div class="action-row" style="margin-top: 1rem;">
+                    <% if (user) { %>
+                        <% if (user.role_level > 0) { %>
+                            <button class="btn btn-primary btn-sm" type="button" id="like-btn" data-post-id="<%= post.id %>">
+                                👍 <span id="like-text" data-i18n="common.like">点赞</span>
+                            </button>
+                        <% } else { %>
+                            <button class="btn btn-ghost btn-sm" type="button" disabled title="LV0用户无法点赞，请先登录升级为LV1">
+                                👍 点赞 (需LV1+)
+                            </button>
+                        <% } %>
+                    <% } %>
+                    <% if (user && user.id !== post.user_id) { %>
+                        <button class="btn btn-ghost btn-sm" type="button" onclick="showReportModal('post', <%= post.id %>)" title="举报该帖子">🚩 <span data-i18n="common.report">举报</span></button>
+                    <% } %>
+                </div>
             </article>
         </aside>
     </section>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var likeBtn = document.getElementById('like-btn');
+        if (likeBtn) {
+            likeBtn.addEventListener('click', function() {
+                var postId = likeBtn.getAttribute('data-post-id');
+                fetch('/api/forum/posts/' + postId + '/like', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                })
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    if (data.error) {
+                        alert(data.error);
+                        return;
+                    }
+                    var countEl = document.getElementById('like-count');
+                    var textEl = document.getElementById('like-text');
+                    if (countEl) countEl.textContent = data.like_count;
+                    if (data.liked && textEl) {
+                        textEl.textContent = '已赞';
+                        likeBtn.classList.remove('btn-primary');
+                        likeBtn.classList.add('btn-ghost');
+                    } else if (textEl) {
+                        textEl.textContent = '点赞';
+                        likeBtn.classList.remove('btn-ghost');
+                        likeBtn.classList.add('btn-primary');
+                    }
+                })
+                .catch(function(err) {
+                    console.error('Like error:', err);
+                    alert('操作失败，请稍后重试');
+                });
+            });
+        }
+    });
+    </script>
 <%- include('report-modal') %>
 <%- include('partials/footer') %>

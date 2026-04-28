@@ -1,0 +1,79 @@
+<%- include('../partials/header') %>
+<style>
+.edit-class-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, rgba(50, 85, 164, 0.1) 0%, rgba(50, 85, 164, 0.05) 100%);
+    border: 1px solid rgba(50, 85, 164, 0.3);
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text);
+}
+.edit-class-banner .class-name {
+    color: var(--primary);
+    font-weight: 700;
+}
+[data-theme="dark"] .edit-class-banner {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(99, 102, 241, 0.05) 100%);
+    border-color: rgba(99, 102, 241, 0.3);
+}
+</style>
+    <section class="page-title">
+        <span class="eyebrow">CJ</span>
+        <h1>编辑 <%= board.name %> CJ</h1>
+        <p>同时编辑 IC、HW、A 三个模块内容</p>
+    </section>
+
+    <% if (gradeContext && ['G6', 'G7', 'G8'].includes(gradeContext.grade)) { %>
+        <% const perm = boardPermissions && boardPermissions.find(p => p.board_id === board.id); %>
+        <% if (perm && !perm.is_shared) { %>
+        <div class="edit-class-banner">
+            <span>你正在编辑班级</span>
+            <span class="class-name"><%= gradeContext.class_name %></span>
+            <span>的 CJ 内容</span>
+        </div>
+        <% } %>
+    <% } %>
+
+    <section class="layout-grid">
+        <article class="card">
+            <form action="/cj/edit" method="POST">
+                <input type="hidden" name="subject" value="<%= board.slug %>">
+
+                <div class="form-group">
+                    <label class="form-label">日期</label>
+                    <input type="date" name="date" class="form-control" value="<%= currentDate || '' %>">
+                    <span class="helper-text">留空则编辑今天的 CJ</span>
+                </div>
+
+                <% ['IC', 'HW', 'A'].forEach(function(sectionKey) { %>
+                    <div class="form-group">
+                        <label for="content_<%= sectionKey.toLowerCase() %>" class="form-label">
+                            <%= (locale === 'en' && sectionTitlesEn[sectionKey]) ? sectionTitlesEn[sectionKey] : sectionTitles[sectionKey] %> 内容
+                            <% if (locale === 'en' && sectionTitlesEn[sectionKey]) { %>
+                                <span class="label-hint">(<%= sectionTitles[sectionKey] %>)</span>
+                            <% } %>
+                        </label>
+                        <textarea
+                            name="content_<%= sectionKey.toLowerCase() %>"
+                            id="content_<%= sectionKey.toLowerCase() %>"
+                            class="form-control"
+                            rows="8"
+                            placeholder="输入 <%= (locale === 'en' && sectionTitlesEn[sectionKey]) ? sectionTitlesEn[sectionKey] : sectionTitles[sectionKey] %> 内容（支持 Markdown）"
+                        ><%= sections[sectionKey] ? sections[sectionKey].content : '' %></textarea>
+                    </div>
+                <% }); %>
+
+                <div class="action-row">
+                    <button type="submit" class="btn btn-primary">保存 CJ</button>
+                    <a href="/cj/subject?subject=<%= board.slug %>" class="btn btn-ghost">取消</a>
+                </div>
+            </form>
+        </article>
+    </section>
+<%- include('../partials/footer') %>

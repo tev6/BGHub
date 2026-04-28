@@ -3,18 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><%= pageTitle ? `${pageTitle} · BG Hub` : 'BG Hub' %></title>
+    <title><%= pageTitle ? `BG Hub - ${pageTitle}` : 'BG Hub' %></title>
+    <script>
+    (function() {
+      var saved = localStorage.getItem('bigz-hub-theme');
+      if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+      } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+    </script>
+    <script>
+    window.i18n = {
+      currentLocale: 'zh',
+      translations: {},
+      init: function() {
+        var saved = localStorage.getItem('locale');
+        var locale = saved || 'zh';
+        this.currentLocale = locale;
+        this.loadTranslations(locale);
+      },
+      loadTranslations: function(locale) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '/locales/' + locale + '.json', false);
+        xhr.send();
+        if (xhr.status === 200) {
+          this.translations = JSON.parse(xhr.responseText);
+        }
+      },
+      t: function(key) {
+        var keys = key.split('.');
+        var value = this.translations;
+        for (var i = 0; i < keys.length; i++) {
+          if (value && typeof value === 'object') {
+            value = value[keys[i]];
+          } else {
+            return key;
+          }
+        }
+        return value || key;
+      },
+      getLocale: function() { return this.currentLocale; },
+      applyTranslations: function() {
+        document.querySelectorAll('[data-i18n]').forEach(function(el) {
+          var key = el.getAttribute('data-i18n');
+          var text = i18n.t(key);
+          if (text !== key) el.textContent = text;
+        });
+        document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) {
+          var key = el.getAttribute('data-i18n-placeholder');
+          var text = i18n.t(key);
+          if (text !== key) el.placeholder = text;
+        });
+        document.querySelectorAll('[data-i18n-title]').forEach(function(el) {
+          var key = el.getAttribute('data-i18n-title');
+          var text = i18n.t(key);
+          if (text !== key) el.title = text;
+        });
+      },
+      updateToggleState: function() {
+        var singleBtn = document.querySelector('.locale-toggle-single');
+        if (singleBtn) {
+          var span = singleBtn.querySelector('[data-i18n="nav.langSwitch"]');
+          if (span) span.textContent = this.currentLocale === 'zh' ? 'EN' : '中';
+        }
+      },
+      setLocale: function(locale) {
+        localStorage.setItem('locale', locale);
+        this.loadTranslations(locale);
+        this.currentLocale = locale;
+        this.applyTranslations();
+        this.updateToggleState();
+        fetch('/api/settings/locale', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ locale: locale }),
+          credentials: 'include'
+        }).catch(function() {});
+      }
+    };
+    i18n.init();
+    document.addEventListener('DOMContentLoaded', function() {
+      i18n.applyTranslations();
+      i18n.updateToggleState();
+    });
+    </script>
     <link rel="stylesheet" href="/css/style.css">
-    <script src="/js/i18n.js"></script>
     <script src="/js/app.js"></script>
 </head>
 <body>
     <header class="site-header">
         <div class="header-shell">
-            <div class="brand-group">
-                <a href="/" class="logo">BG Hub</a>
-                <p class="brand-copy" data-i18n="nav.subtitle">贝赛思校园学习助手</p>
-            </div>
+            <a href="/" class="brand-group">
+                <div class="logo-link">
+                    <img src="/images/logo-light.svg" alt="BG Hub" class="site-logo site-logo-light">
+                    <img src="/images/logo-dark.svg" alt="BG Hub" class="site-logo site-logo-dark">
+                </div>
+                <div class="brand-tagline">
+                    <span>BGHUB</span>
+                    <span>A community designed</span>
+                    <span>For Basis Students</span>
+                </div>
+            </a>
 
             <button class="nav-toggle" type="button" data-nav-toggle aria-label="Toggle navigation">
                 <span></span>
@@ -25,11 +116,12 @@
             <div class="nav-panel" data-nav-panel>
                 <nav class="site-nav">
                     <a href="/" class="<%= currentPath === '/' ? 'is-active' : '' %>" data-i18n="nav.home">首页</a>
-                    <a href="/resources" class="<%= currentPath.startsWith('/resources') ? 'is-active' : '' %>" data-i18n="nav.resources">课件库</a>
-                    <a href="/forum" class="<%= currentPath.startsWith('/forum') ? 'is-active' : '' %>" data-i18n="nav.forum">互助广场</a>
+                    <a href="/resources" class="<%= currentPath.startsWith('/resources') ? 'is-active' : '' %>" data-i18n="nav.resources">资源</a>
+                    <a href="/forum" class="<%= currentPath.startsWith('/forum') ? 'is-active' : '' %>" data-i18n="nav.forum">文章</a>
+                    <a href="/about" class="<%= currentPath.startsWith('/about') ? 'is-active' : '' %>" data-i18n="nav.about">关于</a>
                     <% if (locals.user && locals.user.role_level >= 3) { %>
                         <a href="/review" class="<%= currentPath.startsWith('/review') ? 'is-active' : '' %>" data-i18n="nav.review">审核</a>
-                        <a href="/dashboard" class="<%= currentPath.startsWith('/dashboard') ? 'is-active' : '' %>" data-tooltip="参与社区管理，审核内容获得积分" data-i18n="nav.dashboard">面板</a>
+                        <a href="/dashboard" class="<%= currentPath.startsWith('/dashboard') ? 'is-active' : '' %>" data-tooltip="参与社区管理，审核内容获得信用分" data-i18n="nav.dashboard">面板</a>
                     <% } %>
                 </nav>
 
@@ -51,11 +143,15 @@
                             <span class="icon-bell">🔔</span>
                             <span class="notification-badge" id="notif-badge" style="display:none">0</span>
                         </a>
-                        <div class="user-summary">
-                            <a href="/settings" class="user-name-link"><%= locals.user.name %></a>
-                            <span><%= locals.user.grade %> · <%= locals.user.role_name %> · <%= locals.user.credit %></span>
+                        <div class="user-card-dark">
+                            <a href="/settings" class="user-card-link">
+                                <div class="user-card-info">
+                                    <span class="user-card-name"><%= locals.user.name %></span>
+                                    <span class="user-card-meta"><%= locals.user.grade %> · LV<%= locals.user.role_level %> · <%= locals.user.credit %></span>
+                                </div>
+                            </a>
                         </div>
-                        <% if (locals.user.role_level >= 2) { %>
+                        <% if (locals.user.role_level >= 1) { %>
                         <div class="publish-dropdown">
                             <button class="btn btn-primary publish-dropdown-btn" type="button" tabindex="0" data-i18n="common.publish">发布</button>
                             <div class="publish-dropdown-menu">
@@ -65,8 +161,12 @@
                                 <% if (locals.user.role_level >= 3) { %>
                                     <a href="/resources/new" class="publish-dropdown-item" data-i18n="common.resource">资源</a>
                                 <% } %>
-                                <% if (locals.user.role_level >= 4) { %>
-                                    <a href="/boards" class="publish-dropdown-item" data-i18n="common.cj">CJ</a>
+                                <% if (locals.user.role_level >= 1) { %>
+                                    <a href="/cj" class="publish-dropdown-item" data-i18n="common.cj">CJ</a>
+                                <% } %>
+                                <% if (locals.user.role_level >= 6) { %>
+                                    <hr class="publish-dropdown-divider">
+                                    <a href="/about/new" class="publish-dropdown-item" data-i18n="common.aboutPage">关于页面</a>
                                 <% } %>
                             </div>
                         </div>
@@ -115,7 +215,10 @@
                 }
             });
     })();
+
+    window.GRADE_CONTEXT = <%- JSON.stringify(gradeContext || null) %>;
     </script>
+    <script src="/js/grade-selector.js"></script>
     <main class="page-shell">
         <% if (flash) { %>
             <div class="flash flash-<%= flash.type %>"><%= flash.message %></div>

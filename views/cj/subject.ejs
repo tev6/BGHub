@@ -1,0 +1,129 @@
+<%- include('../partials/header') %>
+    <section class="page-title">
+        <span class="eyebrow">CJ</span>
+        <h1><%= (locale === 'en' && displayNameEn) ? displayNameEn : (displayName || board.name) %> CJ</h1>
+        <p><%= board.description %></p>
+    </section>
+
+    <% if (gradeContext && ['G6', 'G7', 'G8'].includes(gradeContext.grade) && !isShared) { %>
+    <div class="cj-class-controls">
+        <div class="class-switcher" id="class-switcher">
+            <span class="class-switcher-label" data-i18n="cj.classLabel">班级:</span>
+        </div>
+    </div>
+    <div class="viewing-class-notice" id="viewing-class-notice"></div>
+    <% } %>
+
+    <section class="cj-layout">
+        <div class="cj-main">
+            <div class="cj-date-bar card">
+                <div class="date-nav-row">
+                    <button type="button" id="cj-prev-btn" class="btn btn-ghost date-nav-btn <%= typeof canGoPrev !== 'undefined' && !canGoPrev ? 'disabled' : '' %>" <%= typeof canGoPrev !== 'undefined' && !canGoPrev ? 'aria-disabled="true"' : ''%>>
+                        <span>‹</span>
+                    </button>
+                    <span class="date-nav-current" id="cj-date-display"><%= dateDisplay %></span>
+                    <button type="button" id="cj-next-btn" class="btn btn-ghost date-nav-btn <%= isToday ? 'disabled' : '' %>" <%= isToday ? 'aria-disabled="true"' : ''%>>
+                        <span>›</span>
+                    </button>
+                    <% if (user && user.role_level >= 1) { %>
+                        <a href="/cj/edit?subject=<%= board.slug %>&date=<%= currentDate || '' %>" class="btn btn-ghost" style="margin-left: auto;">✏️ 编辑</a>
+                    <% } %>
+                </div>
+            </div>
+
+            <div class="cj-sections">
+                <% ['IC', 'HW', 'A'].forEach(function(sectionKey) { %>
+                    <article class="card cj-section-block" data-section="<%= sectionKey %>">
+                        <div class="panel-head">
+                            <span class="eyebrow"><%= (locale === 'en' && sectionTitlesEn[sectionKey]) ? sectionTitlesEn[sectionKey] : sectionTitles[sectionKey] %></span>
+                            <% if (locale === 'en' && sectionTitlesEn[sectionKey]) { %>
+                                <span class="section-original-title"><%= sectionTitles[sectionKey] %></span>
+                            <% } %>
+                        </div>
+                        <div class="section-markdown">
+                            <%- renderMarkdown(sections[sectionKey] ? sections[sectionKey].content : '') || '<p class="empty-state">暂未填写</p>' %>
+                        </div>
+                    </article>
+                <% }); %>
+            </div>
+        </div>
+
+        <aside class="cj-sidebar">
+            <div class="cj-sidebar-inner">
+                <h4>快速跳转</h4>
+                <nav class="cj-subject-nav">
+                    <% boards.forEach(function(b) { %>
+                        <a href="/cj/subject?subject=<%= b.slug %><%= b.class_name && b.class_name !== (gradeContext && gradeContext.class_name) ? '&class=' + b.class_name : '' %>" class="cj-subject-link <%= b.slug === board.slug && (!b.class_name || b.class_name === (gradeContext && gradeContext.class_name)) ? 'active' : '' %>">
+                            <%= (locale === 'en' && (b.display_name_en || b.name_en)) ? (b.display_name_en || b.name_en) : (b.display_name || b.name) %>
+                        </a>
+                    <% }); %>
+                </nav>
+            </div>
+        </aside>
+    </section>
+
+    <script>
+    window.CJ_SUBJECT = '<%= board.slug %>';
+    window.CJ_CURRENT_DATE = '<%= currentDate || "" %>';
+    window.CJ_LOCALE = '<%= locale || "zh" %>';
+    </script>
+    <script src="/js/cj-view.js"></script>
+    <script>
+    (function() {
+        var currentClass = '<%= gradeContext && gradeContext.class_name ? gradeContext.class_name : "" %>';
+        var userClass = currentClass;
+        var viewingClass = '<%= locals.viewingClass || "" %>';
+        var boardSlug = '<%= board.slug %>';
+        var isShared = <%= locals.isShared ? 'true' : 'false' %>;
+        var grade = '<%= gradeContext && gradeContext.grade ? gradeContext.grade : "" %>';
+        
+        if (!isShared && grade && ['G6', 'G7', 'G8'].includes(grade)) {
+            fetch('/api/classes?grade=' + grade)
+                .then(function(res) { return res.json(); })
+                .then(function(classes) {
+                    var switcher = document.getElementById('class-switcher');
+                    if (!switcher || !classes || classes.length === 0) return;
+                    
+                    classes.forEach(function(cls) {
+                        var btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'class-switcher-btn' + (cls === (viewingClass || userClass) ? ' active' : '');
+                        btn.textContent = cls;
+                        btn.setAttribute('data-class', cls);
+                        btn.addEventListener('click', function() {
+                            var url = new URL(window.location.href);
+                            if (cls === userClass) {
+                                url.searchParams.delete('class');
+                            } else {
+                                url.searchParams.set('class', cls);
+                            }
+                            window.location.href = url.toString();
+                        });
+                        switcher.appendChild(btn);
+                    });
+                    
+                    updateViewingNotice();
+                })
+                .catch(function(err) {
+                    console.error('Failed to load classes:', err);
+                });
+        }
+        
+        function updateViewingNotice() {
+            var notice = document.getElementById('viewing-class-notice');
+            if (!notice) return;
+            
+            var urlParams = new URLSearchParams(window.location.search);
+            var viewingCls = urlParams.get('class') || userClass;
+            
+            if (viewingCls && viewingCls !== userClass) {
+                notice.innerHTML = '<span class="notice-text">正在查看 ' + viewingCls + ' 班的 CJ（只读）</span>';
+                var editBtn = document.querySelector('a[href*="/cj/edit"]');
+                if (editBtn) {
+                    editBtn.style.display = 'none';
+                }
+            }
+        }
+    })();
+    </script>
+<%- include('../partials/footer') %>

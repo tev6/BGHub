@@ -2,7 +2,6 @@
     <div class="notifications-page">
         <div class="page-header">
             <h1 data-i18n="notifications.title">通知中心</h1>
-            <button class="btn btn-primary" type="button" id="mark-all-read" data-i18n="notifications.markAllRead">全部标为已读</button>
         </div>
 
         <div class="filter-tabs">
@@ -33,11 +32,6 @@
                             </div>
                             <p><%= notification.content %></p>
                         </div>
-                        <div class="notification-actions">
-                            <% if (!notification.is_read) { %>
-                                <button class="btn btn-ghost btn-sm mark-read" type="button">标为已读</button>
-                            <% } %>
-                        </div>
                     </div>
                 <% }) %>
             <% } else { %>
@@ -59,48 +53,4 @@
             </div>
         <% } %>
     </div>
-
-    <script>
-    (function() {
-        document.querySelectorAll('.mark-read').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                var id = this.closest('.notification-item').dataset.id;
-                fetch('/api/notifications/' + id + '/read', { method: 'POST' })
-                    .then(function(res) { return res.json(); })
-                    .then(function() {
-                        var item = document.querySelector('.notification-item[data-id="' + id + '"]');
-                        if (item) {
-                            item.classList.remove('is-unread');
-                            item.querySelector('.mark-read') && item.querySelector('.mark-read').remove();
-                        }
-                        updateUnreadCount();
-                    });
-            });
-        });
-
-        document.getElementById('mark-all-read').addEventListener('click', function() {
-            fetch('/api/notifications/read-all', { method: 'POST' })
-                .then(function(res) { return res.json(); })
-                .then(function() {
-                    document.querySelectorAll('.notification-item.is-unread').forEach(function(item) {
-                        item.classList.remove('is-unread');
-                        item.querySelector('.mark-read') && item.querySelector('.mark-read').remove();
-                    });
-                    updateUnreadCount();
-                });
-        });
-
-        function updateUnreadCount() {
-            fetch('/api/notifications/unread-count')
-                .then(function(res) { return res.json(); })
-                .then(function(data) {
-                    var badge = document.querySelector('.notification-badge');
-                    if (badge) {
-                        badge.textContent = data.count;
-                        badge.style.display = data.count > 0 ? 'inline-flex' : 'none';
-                    }
-                });
-        }
-    })();
-    </script>
 <%- include('partials/footer') %>

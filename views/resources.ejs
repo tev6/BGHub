@@ -1,7 +1,7 @@
 <%- include('partials/header') %>
     <section class="page-title">
         <span class="eyebrow" data-i18n="resources.eyebrow">Slide Library</span>
-        <h1 data-i18n="resources.title">课件库</h1>
+        <h1 data-i18n="resources.title">资源</h1>
         <p data-i18n="resources.description">按学科查看课件、PPT、笔记和复习资料，支持链接或本地文件上传。</p>
     </section>
 
@@ -32,7 +32,7 @@
                                 <span class="helper-text"><%= formatDate(resource.created_at, true) %></span>
                             </div>
                             <h3><%= resource.title %></h3>
-                            <p data-i18n="resources.description"><%= resource.description || '' %></p>
+                            <p><%= excerpt(resource.description, 100) %></p>
                             <div class="meta-row">
                                 <span><%= resource.teacher || '' %></span>
                                 <span><span data-i18n="resources.download">下载</span> <%= resource.download_count %></span>

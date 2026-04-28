@@ -31,26 +31,31 @@
                 </label>
 
                 <label class="form-group">
-                    <span class="form-label" data-i18n="resources.teacher">任课老师</span>
-                    <input class="form-control" type="text" name="teacher" data-i18n-placeholder="resources.teacherPlaceholder" placeholder="">
-                </label>
-
-                <label class="form-group">
                     <span class="form-label" data-i18n="resources.description">资源描述</span>
                     <textarea class="form-control" name="description" rows="5" data-i18n-placeholder="resources.descPlaceholder" placeholder=""></textarea>
                 </label>
 
                 <label class="form-group">
+                    <span class="form-label" data-i18n="resources.resourceType">资源类型</span>
+                    <select name="resource_type" id="resource-type-select" class="form-control" required onchange="handleResourceTypeChange()">
+                        <option value="" data-i18n="resources.selectType">请选择</option>
+                        <option value="external" data-i18n="resources.externalLink">外部链接</option>
+                        <option value="file" data-i18n="resources.fileType">文件</option>
+                    </select>
+                </label>
+
+                <label class="form-group" id="external-url-group" style="display: none;">
                     <span class="form-label" data-i18n="resources.externalUrl">外部链接</span>
-                    <input class="form-control" type="url" name="external_url" data-i18n-placeholder="resources.urlPlaceholder" placeholder="">
+                    <input class="form-control" type="url" name="external_url" id="external-url-input" data-i18n-placeholder="resources.urlPlaceholder" placeholder="">
                 </label>
 
-                <label class="form-group">
-                    <span class="form-label" data-i18n="resources.uploadFile">或上传文件</span>
-                    <input class="form-control" type="file" name="resourceFile" accept=".pdf,.ppt,.pptx,.doc,.docx,.png,.jpg,.jpeg">
+                <label class="form-group" id="file-upload-group" style="display: none;">
+                    <span class="form-label" data-i18n="resources.uploadFile">上传文件</span>
+                    <input class="form-control" type="file" name="resourceFile" id="file-upload-input" accept=".pdf,.ppt,.pptx,.doc,.docx,.png,.jpg,.jpeg">
+                    <span class="helper-text" data-i18n="resources.maxFileSize">最大支持 100MB</span>
                 </label>
 
-                <p class="helper-text" data-i18n="resources.uploadNote">普通用户上传后状态为 pending，管理员上传会直接发布。</p>
+                <p class="helper-text" data-i18n="resources.uploadNote">发布后会经过人工审核，请耐心等待。</p>
 
                 <div class="action-row">
                     <button class="btn btn-primary" type="submit" data-i18n="resources.submitResource">提交资源</button>
@@ -59,4 +64,33 @@
             </form>
         </article>
     </section>
+
+    <script>
+    function handleResourceTypeChange() {
+        var select = document.getElementById('resource-type-select');
+        var externalGroup = document.getElementById('external-url-group');
+        var fileGroup = document.getElementById('file-upload-group');
+        var externalInput = document.getElementById('external-url-input');
+        var fileInput = document.getElementById('file-upload-input');
+
+        if (select.value === 'external') {
+            externalGroup.style.display = 'block';
+            fileGroup.style.display = 'none';
+            externalInput.required = true;
+            fileInput.required = false;
+            fileInput.value = '';
+        } else if (select.value === 'file') {
+            externalGroup.style.display = 'none';
+            fileGroup.style.display = 'block';
+            externalInput.required = false;
+            externalInput.value = '';
+            fileInput.required = true;
+        } else {
+            externalGroup.style.display = 'none';
+            fileGroup.style.display = 'none';
+            externalInput.required = false;
+            fileInput.required = false;
+        }
+    }
+    </script>
 <%- include('partials/footer') %>

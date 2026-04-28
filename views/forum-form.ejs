@@ -2,7 +2,7 @@
     <section class="page-title">
         <span class="eyebrow" data-i18n="forum.forumEditor">Forum Editor</span>
         <h1 data-i18n="forum.<%= mode === 'edit' ? 'editPost' : 'createPost' %>"><%= mode === 'edit' ? '编辑帖子' : '发布帖子' %></h1>
-        <p data-i18n="forum.editorDescription">支持问题、学习笔记与资源分享三种类型，正文使用 Markdown 输入。</p>
+        <p data-i18n="forum.editorDescription">正文使用 Markdown 输入。</p>
     </section>
 
     <section class="layout-grid">
@@ -18,19 +18,10 @@
             <form class="form-grid" action="<%= mode === 'edit' ? `/forum/${post.id}/edit` : '/forum/posts' %>" method="POST">
                 <label class="form-group">
                     <span class="form-label" data-i18n="forum.boardLabel">学科板块</span>
-                    <select name="board_id" class="form-control" required>
-                        <option value="" data-i18n="forum.selectBoard">选择学科</option>
+                    <select name="board_id" class="form-control">
+                        <option value="" data-i18n="forum.selectBoard">选择学科（可选）</option>
                         <% boards.forEach(board => { %>
                             <option value="<%= board.id %>" <%= post && Number(post.board_id) === board.id ? 'selected' : '' %>><%= (locale === 'en' && board.name_en) ? board.name_en : board.name %></option>
-                        <% }) %>
-                    </select>
-                </label>
-
-                <label class="form-group">
-                    <span class="form-label" data-i18n="forum.typeLabel">帖子类型</span>
-                    <select name="post_type" class="form-control" required>
-                        <% ['question', 'note', 'share'].forEach(type => { %>
-                            <option value="<%= type %>" <%= post && post.post_type === type ? 'selected' : '' %> data-i18n="forum.type<%= type.charAt(0).toUpperCase() + type.slice(1) %>"><%= type %></option>
                         <% }) %>
                     </select>
                 </label>
@@ -58,8 +49,6 @@
                 <ul class="mini-list">
                     <li><span>1</span><span data-i18n="forum.tip1">标题尽量描述清楚题目、章节或资源用途</span></li>
                     <li><span>2</span><span data-i18n="forum.tip2">Markdown 支持列表、代码块与链接</span></li>
-                    <li><span>3</span><span data-i18n="forum.tip3">问题贴可以在详情页标记为已解决</span></li>
-                    <li><span>4</span><span data-i18n="forum.tip4">资源分享可同步在课件库提交正式文件</span></li>
                 </ul>
             </article>
         </aside>

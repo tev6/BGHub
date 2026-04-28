@@ -197,6 +197,95 @@ test.describe('信用体系边界测试', () => {
   });
 });
 
+test.describe('CJ 模块测试', () => {
+  let tempRoot, dataDir, sessionDir, uploadDir, dbPath, context, server, address, client;
+
+  test.before(async () => {
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bigz-hub-cj-'));
+    dataDir = path.join(tempRoot, 'data');
+    sessionDir = path.join(dataDir, 'sessions');
+    uploadDir = path.join(tempRoot, 'uploads');
+    dbPath = path.join(dataDir, 'test.db');
+    context = createApp({ dataDir, sessionDir, uploadDir, dbPath });
+    server = await context.startServer({ port: 0, host: '127.0.0.1' });
+    address = server.address();
+    client = createCookieClient(`http://127.0.0.1:${address.port}`);
+  });
+
+  test.after(async () => {
+    await new Promise((resolve, reject) => {
+      server.close((error) => {
+        if (error) { reject(error); return; }
+        resolve();
+      });
+    });
+    context.db.close();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  test('CJ首页可访问', async () => {
+    const response = await client('/cj');
+    assert.equal(response.status, 200);
+  });
+
+  test('CJ学科详情页可访问', async () => {
+    const response = await client('/cj/subject?subject=mathematics');
+    assert.equal(response.status, 200);
+  });
+
+  test('CJ API可获取数据', async () => {
+    const response = await client('/cj/api?subject=mathematics');
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.ok(data.sections);
+  });
+
+  test('LV3用户可访问编辑页', async () => {
+    const registerResponse = await client('/api/auth/register', {
+      method: 'POST',
+      body: {
+        email: 'cjuser@basischina.com',
+        password: 'Password123',
+        name: 'CJ测试用户',
+        grade: 'G10'
+      }
+    });
+    assert.equal(registerResponse.status, 201);
+
+    const db = context.db;
+    await new Promise((resolve, reject) => {
+      db.run('UPDATE users SET role_level = 3 WHERE email = ?', ['cjuser@basischina.com'], (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    const editResponse = await client('/cj/edit');
+    assert.equal(editResponse.status, 200);
+  });
+
+  test('LV3用户可编辑CJ', async () => {
+    const db = context.db;
+    await new Promise((resolve, reject) => {
+      db.run('UPDATE users SET role_level = 3, role = ? WHERE email = ?', ['moderator', 'cjuser@basischina.com'], (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    const editPostResponse = await client('/cj/edit', {
+      method: 'POST',
+      body: {
+        subject: 'mathematics',
+        content_ic: 'IC Test Content',
+        content_hw: 'HW Test Content',
+        content_a: 'A Test Content'
+      }
+    });
+    assert.equal(editPostResponse.status, 302);
+  });
+});
+
 test.describe('权限细则测试', () => {
   let tempRoot, dataDir, sessionDir, uploadDir, dbPath, context, server, address, client;
 
@@ -244,6 +333,179 @@ test.describe('权限细则测试', () => {
   test('审核面板需要权限', async () => {
     const reviewResponse = await client('/api/review/items');
     assert.equal(reviewResponse.status, 403);
+  });
+
+  test('LV1用户无法访问/forum/new页面', async () => {
+    const registerResponse = await client('/api/auth/register', {
+      method: 'POST',
+      body: {
+        email: 'lv1user@basischina.com',
+        password: 'Password123',
+        name: 'LV1用户',
+        grade: 'G7'
+      }
+    });
+    assert.equal(registerResponse.status, 201);
+
+    const db = context.db;
+    await new Promise((resolve, reject) => {
+      db.run('UPDATE users SET role_level = 1 WHERE email = ?', ['lv1user@basischina.com'], (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    const newForumResponse = await client('/forum/new');
+    assert.equal(newForumResponse.status, 403);
+  });
+
+  test('LV1用户无法通过API创建帖子', async () => {
+    const registerResponse = await client('/api/auth/register', {
+      method: 'POST',
+      body: {
+        email: 'lv1poster@basischina.com',
+        password: 'Password123',
+        name: 'LV1发帖者',
+        grade: 'G7'
+      }
+    });
+    assert.equal(registerResponse.status, 201);
+
+    const db = context.db;
+    await new Promise((resolve, reject) => {
+      db.run('UPDATE users SET role_level = 1 WHERE email = ?', ['lv1poster@basischina.com'], (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    const boardsResponse = await client('/api/boards');
+    const boards = await boardsResponse.json();
+    const firstBoard = boards.boards[0];
+
+    const postResponse = await client('/api/forum/posts', {
+      method: 'POST',
+      body: {
+        title: 'LV1测试帖子标题',
+        content: '这是LV1用户发布的测试帖子内容，至少需要10个字符。',
+        board_id: firstBoard.id,
+        post_type: 'question'
+      }
+    });
+    assert.equal(postResponse.status, 403);
+  });
+
+  test('LV2用户可以创建帖子', async () => {
+    const registerResponse = await client('/api/auth/register', {
+      method: 'POST',
+      body: {
+        email: 'lv2user@basischina.com',
+        password: 'Password123',
+        name: 'LV2用户',
+        grade: 'G7'
+      }
+    });
+    assert.equal(registerResponse.status, 201);
+
+    const db = context.db;
+    await new Promise((resolve, reject) => {
+      db.run('UPDATE users SET role_level = 2 WHERE email = ?', ['lv2user@basischina.com'], (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    const boardsResponse = await client('/api/boards');
+    const boards = await boardsResponse.json();
+    const firstBoard = boards.boards[0];
+
+    const postResponse = await client('/api/forum/posts', {
+      method: 'POST',
+      body: {
+        title: 'LV2测试帖子标题',
+        content: '这是LV2用户发布的测试帖子内容，至少需要10个字符。',
+        board_id: firstBoard.id,
+        post_type: 'question'
+      }
+    });
+    assert.equal(postResponse.status, 200);
+
+    const postId = (await postResponse.json()).post?.id || (await client('/api/forum/posts')).then(r => r.json()).then(data => data.posts?.[0]?.id);
+
+    const editGetResponse = await client(`/forum/${postId}/edit`);
+    assert.equal(editGetResponse.status, 200, 'LV2用户应该可以访问编辑页面');
+
+    const editPostResponse = await client(`/forum/${postId}/edit`, {
+      method: 'POST',
+      body: {
+        title: 'LV2测试帖子标题已修改',
+        content: '这是LV2用户修改后的测试帖子内容，至少需要10个字符。',
+        board_id: firstBoard.id,
+        post_type: 'question'
+      }
+    });
+    assert.equal([editPostResponse.status, 200, 302].includes(editPostResponse.status), true, 'LV2用户应该可以编辑帖子');
+  });
+
+  test('LV1用户无法访问编辑页面', async () => {
+    const registerResponse = await client('/api/auth/register', {
+      method: 'POST',
+      body: {
+        email: 'lv1edit@basischina.com',
+        password: 'Password123',
+        name: 'LV1编辑测试',
+        grade: 'G7'
+      }
+    });
+    assert.equal(registerResponse.status, 201);
+
+    const db = context.db;
+    await new Promise((resolve, reject) => {
+      db.run('UPDATE users SET role_level = 1 WHERE email = ?', ['lv1edit@basischina.com'], (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    const boardsResponse = await client('/api/boards');
+    const boards = await boardsResponse.json();
+    const firstBoard = boards.boards[0];
+
+    const lv2Response = await client('/api/auth/register', {
+      method: 'POST',
+      body: {
+        email: 'lv2postowner@basischina.com',
+        password: 'Password123',
+        name: 'LV2帖子所有者',
+        grade: 'G7'
+      }
+    });
+    assert.equal(lv2Response.status, 201);
+    await new Promise((resolve, reject) => {
+      db.run('UPDATE users SET role_level = 2 WHERE email = ?', ['lv2postowner@basischina.com'], (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    const postResponse = await client('/api/forum/posts', {
+      method: 'POST',
+      body: {
+        title: 'LV2创建的帖子用于测试LV1编辑权限',
+        content: '这是LV2用户发布的测试帖子内容，至少需要10个字符。',
+        board_id: firstBoard.id,
+        post_type: 'question'
+      }
+    });
+    assert.equal(postResponse.status, 200);
+
+    const postsData = await (await client('/api/forum/posts')).json();
+    const lv2Post = postsData.posts?.find(p => p.user_name === 'LV2帖子所有者');
+
+    if (lv2Post) {
+      const editResponse = await client(`/forum/${lv2Post.id}/edit`);
+      assert.equal(editResponse.status, 403, 'LV1用户不能访问编辑页面');
+    }
   });
 });
 

@@ -15,7 +15,7 @@
                 <h1><span data-i18n="dashboard.welcome">欢迎回来，</span><%= locals.user.name %></h1>
                 <p class="welcome-subtitle">
                     <span class="lv-badge lv-<%= userLevel %>">LV<%= userLevel %></span>
-                    <span data-i18n="dashboard.credit">积分</span> <%= locals.user.credit || 0 %>
+                    <span data-i18n="dashboard.credit">信用分</span> <%= locals.user.credit || 0 %>
                     <% if (userLevel >= 3 && userLevel <= 5) { %>
                         · <span data-i18n="dashboard.reviewsToday">今日已审核</span> <%= myReviewsToday %> <span data-i18n="dashboard.reviewCount">条</span>
                     <% } %>
@@ -127,6 +127,7 @@
                     <div class="card-footer action-group">
                         <a href="/review" class="btn btn-primary" data-i18n="dashboard.contentReview">内容审核</a>
                         <a href="/admin/users" class="btn btn-ghost" data-i18n="dashboard.userMgmt">用户管理</a>
+                        <a href="/grades" class="btn btn-ghost" data-i18n="dashboard.gradeMgmt">年级班级</a>
                     </div>
                 </article>
                 <% } %>
@@ -137,7 +138,7 @@
                         <h3 data-i18n="dashboard.reviewGuide">审核指南</h3>
                     </div>
                     <div class="card-body">
-                        <p class="card-description" data-i18n="dashboard.reviewReward">正确审核他人内容可获得积分奖励：</p>
+                        <p class="card-description" data-i18n="dashboard.reviewReward">正确审核他人内容可获得信用分奖励：</p>
                         <ul class="reward-list">
                             <li>
                                 <span class="reward-icon">🎯</span>

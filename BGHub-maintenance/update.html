@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统更新中 - BG Hub</title>
+    <script>
+    (function() {
+      var saved = localStorage.getItem('bigz-hub-theme');
+      if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+      } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+    </script>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+    .update-container {
+      min-height: 60vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 2rem;
+    }
+
+    .update-content {
+      max-width: 560px;
+    }
+
+    .update-icon {
+      font-size: 5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .update-title {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 1rem;
+    }
+
+    .update-message {
+      font-size: 1.1rem;
+      color: var(--muted);
+      line-height: 1.7;
+      margin-bottom: 2rem;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      background: rgba(50, 85, 164, 0.12);
+      color: var(--primary);
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      margin-bottom: 2rem;
+    }
+
+    .update-info {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 2rem;
+      text-align: left;
+    }
+
+    .update-info h3 {
+      font-size: 1rem;
+      color: var(--primary);
+      margin-bottom: 12px;
+    }
+
+    .update-info ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .update-info li {
+      padding: 8px 0;
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+    }
+
+    .contact-info {
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .contact-info a {
+      color: var(--primary);
+      font-weight: 600;
+    }
+    </style>
+</head>
+<body>
+    <header class="site-header">
+        <div class="header-shell">
+            <a href="/" class="brand-group">
+                <div class="logo-link">
+                    <img src="/images/logo-light.svg" alt="BG Hub" class="site-logo site-logo-light">
+                    <img src="/images/logo-dark.svg" alt="BG Hub" class="site-logo site-logo-dark">
+                </div>
+            </a>
+            <div class="header-actions">
+                <button class="theme-toggle" type="button" onclick="ThemeManager.toggle()" aria-label="Toggle theme">
+                    <span class="theme-icon-dark" style="display:none">☀️</span>
+                    <span class="theme-icon-light">🌙</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container update-container">
+        <div class="update-content">
+            <div class="update-icon">🚀</div>
+            <h1 class="update-title">系统正在更新</h1>
+            <p class="update-message">
+                BG Hub 正在为您带来全新体验！<br>
+                新版本包含多项功能优化和问题修复，请稍候片刻。
+            </p>
+
+            <div class="status-badge">更新进行中</div>
+
+            <div class="update-info">
+                <h3>更新内容</h3>
+                <ul>
+                    <li>备份数据</li>
+                    <li>安装更新文件</li>
+                    <li>更新数据库结构</li>
+                    <li>清理缓存</li>
+                    <li>验证系统完整性</li>
+                </ul>
+            </div>
+
+            <a href="/" class="btn btn-primary">更新完成后返回</a>
+
+            <div class="contact-info">
+                <p>如有疑问，请联系系统管理员：<a href="mailto:admin@bghub.com">admin@bghub.com</a></p>
+            </div>
+        </div>
+    </main>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>

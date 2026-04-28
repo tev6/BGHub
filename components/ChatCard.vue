@@ -43,6 +43,8 @@
 </template>
 
 <script>
+import { formatDate } from '../utils/date.js';
+
 export default {
   name: 'ChatCard',
   props: {
@@ -63,14 +65,6 @@ export default {
     };
   },
   methods: {
-    formatDate(dateValue, includeTime = false) {
-      if (!dateValue) return '—';
-      const date = new Date(dateValue);
-      if (Number.isNaN(date.getTime())) return '—';
-      return includeTime
-        ? date.toLocaleString('zh-CN', { hour12: false })
-        : date.toLocaleDateString('zh-CN');
-    },
     async handleSubmit() {
       if (!this.content.trim() || this.sending) return;
 

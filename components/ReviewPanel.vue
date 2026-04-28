@@ -88,6 +88,8 @@
 </template>
 
 <script>
+import { formatDate } from '../utils/date.js';
+
 export default {
   name: 'ReviewPanel',
   props: {
@@ -128,14 +130,6 @@ export default {
       const labels = { post: '帖子', chat: '聊天', resource: '资源' };
       return labels[type] || type;
     },
-    formatDate(dateValue, includeTime = false) {
-      if (!dateValue) return '—';
-      const date = new Date(dateValue);
-      if (Number.isNaN(date.getTime())) return '—';
-      return includeTime
-        ? date.toLocaleString('zh-CN', { hour12: false })
-        : date.toLocaleDateString('zh-CN');
-    },
     async goToPage(page) {
       const response = await fetch(`/api/review/items?page=${page}`);
       const payload = await response.json();
@@ -161,7 +155,7 @@ export default {
         <h3>基本信息</h3>
         <p><strong>类型：</strong>${this.typeLabel(item.item_type)}</p>
         <p><strong>提交者：</strong>${item.author_name}</p>
-        <p><strong>时间：</strong>${this.formatDate(item.created_at, true)}</p>
+        <p><strong>时间：</strong>${formatDate(item.created_at, true)}</p>
       </div>`;
 
       if (content) {
@@ -193,7 +187,7 @@ export default {
             <span>${h.reviewer_name}</span>
             <span>${h.action === 'approve' ? '通过' : '驳回'}</span>
             <span>${h.reason}</span>
-            <span>${this.formatDate(h.created_at, true)}</span>
+            <span>${formatDate(h.created_at, true)}</span>
           </div>`;
         });
         html += `</div>`;

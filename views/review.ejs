@@ -2,85 +2,92 @@
     <div class="review-layout">
         <div class="review-header">
             <h1 data-i18n="review.title">审核面板</h1>
-            <span class="helper-text"><span data-i18n="review.userLevel">LV</span><%= locals.user ? locals.user.role_level : 0 %></span>
+            <div class="level-badge">
+                <span class="helper-text">LV</span><span class="level-number"><%= locals.user ? locals.user.role_level : 0 %></span>
+                <button type="button" class="btn btn-ghost btn-xs" onclick="showLevelInfo()" title="等级说明">❓</button>
+            </div>
         </div>
 
         <div class="review-tabs">
-            <button class="tab-btn" data-tab="pending" data-i18n="review.tabPending">待审核</button>
-            <button class="tab-btn" data-tab="appeals" data-i18n="review.tabAppeals">申诉队列</button>
+            <button class="tab-btn is-active" data-tab="pending" data-i18n="review.tabPending">
+                待人工审核 <span class="tab-count" data-count="pending">0</span>
+            </button>
+            <button class="tab-btn" data-tab="appeals" data-i18n="review.tabAppeals">
+                申诉队列 <span class="tab-count" data-count="appeals">0</span>
+            </button>
+            <% if (user && user.role_level >= 3) { %>
+            <button class="tab-btn" data-tab="ai-reviewing" data-i18n="review.tabAiReviewing">
+                AI审核中 <span class="tab-count" data-count="ai-reviewing">0</span>
+            </button>
+            <% } %>
+            <% if (user && user.role_level >= 4) { %>
+            <button class="tab-btn" data-tab="reports" data-i18n="review.tabReports">
+                举报管理 <span class="tab-count" data-count="reports">0</span>
+            </button>
+            <% } %>
+        </div>
+
+        <div class="review-filters" data-tab-content="pending">
+            <select id="filter-type" class="form-control form-control-sm">
+                <option value="">全部类型</option>
+                <option value="chat">聊天消息</option>
+                <option value="post">帖子/笔记</option>
+                <option value="resource">资源</option>
+                <option value="homework">作业</option>
+            </select>
+            <select id="filter-status" class="form-control form-control-sm">
+                <option value="pending">待处理</option>
+                <option value="approved">已通过</option>
+                <option value="rejected">已驳回</option>
+            </select>
         </div>
 
         <div class="review-list" data-review-list data-tab-content="pending">
-            <% if (items.length) { %>
-                <% items.forEach(item => { %>
-                    <div class="review-item card" data-item-id="<%= item.id %>">
-                        <div class="review-item-icon">
-                            <% if (item.item_type === 'post') { %>
-                                <span class="icon-post">📝</span>
-                            <% } else if (item.item_type === 'chat') { %>
-                                <span class="icon-chat">💬</span>
-                            <% } else if (item.item_type === 'resource') { %>
-                                <span class="icon-resource">📎</span>
-                            <% } %>
-                        </div>
-                        <div class="review-item-body">
-                            <div class="review-item-meta">
-                                <span class="tag" data-i18n="review.itemType_<%= item.item_type %>"></span>
-                                <span data-i18n="review.submitter"><%= item.author_name %></span>
-                                <span><%= formatDate(item.created_at, true) %></span>
-                            </div>
-                            <p class="review-item-preview"><%= item.payload || '' %></p>
-                        </div>
-                        <div class="review-item-actions">
-                            <button class="btn btn-primary btn-sm" type="button" data-approve="<%= item.id %>" data-i18n="review.approve">通过</button>
-                            <button class="btn btn-danger btn-sm" type="button" data-reject="<%= item.id %>" data-i18n="review.reject">不通过</button>
-                            <button class="btn btn-ghost btn-sm" type="button" data-detail="<%= item.id %>" data-i18n="review.detail">详情</button>
-                        </div>
-                    </div>
-                <% }) %>
-            <% } else { %>
+            <div class="review-loading" hidden>
+                <span>加载中...</span>
+            </div>
+            <div class="review-empty" hidden>
                 <div class="empty-state" data-i18n="review.noItems">暂无待审核内容</div>
-            <% } %>
+            </div>
         </div>
 
         <div class="review-list" data-review-list data-tab-content="appeals" hidden>
-            <% if (appeals && appeals.length) { %>
-                <% appeals.forEach(appeal => { %>
-                    <div class="review-item card" data-appeal-id="<%= appeal.id %>">
-                        <div class="review-item-icon">
-                            <span class="icon-appeal">⚖️</span>
-                        </div>
-                        <div class="review-item-body">
-                            <div class="review-item-meta">
-                                <span class="tag"><%= appeal.content_type %></span>
-                                <span>ID: <%= appeal.content_id %></span>
-                                <span><%= appeal.author_name %></span>
-                                <span><%= formatDate(appeal.created_at, true) %></span>
-                            </div>
-                            <p class="review-item-preview"><%= appeal.appeal_reason || '' %></p>
-                        </div>
-                        <div class="review-item-actions">
-                            <button class="btn btn-primary btn-sm" type="button" data-appeal-approve="<%= appeal.id %>" data-i18n="review.appealApprove">批准</button>
-                            <button class="btn btn-danger btn-sm" type="button" data-appeal-reject="<%= appeal.id %>" data-i18n="review.appealReject">不通过</button>
-                        </div>
-                    </div>
-                <% }) %>
-            <% } else { %>
+            <div class="review-loading" hidden>
+                <span>加载中...</span>
+            </div>
+            <div class="review-empty" hidden>
                 <div class="empty-state" data-i18n="review.noAppeals">暂无申诉</div>
-            <% } %>
+            </div>
         </div>
 
-        <% if (pagination.totalPages > 1) { %>
-            <div class="pagination">
-                <% if (pagination.page > 1) { %>
-                    <a href="/review?page=<%= pagination.page - 1 %>" class="btn btn-ghost" data-i18n="common.prevPage">上一页</a>
-                <% } %>
-                <span class="page-info"><span data-i18n="common.pageOf"></span> <%= pagination.page %> / <%= pagination.totalPages %> <span data-i18n="common.page"></span></span>
-                <% if (pagination.page < pagination.totalPages) { %>
-                    <a href="/review?page=<%= pagination.page + 1 %>" class="btn btn-ghost" data-i18n="common.nextPage">下一页</a>
-                <% } %>
+        <div class="review-list" data-review-list data-tab-content="ai-reviewing" hidden>
+            <div class="review-loading" hidden>
+                <span>加载中...</span>
             </div>
+            <div class="review-empty" hidden>
+                <div class="empty-state">暂无AI审核中的内容</div>
+            </div>
+            <div class="ai-reviewing-notice" style="padding: 0.5rem; background: var(--surface); border-radius: 0.25rem; margin-bottom: 0.5rem;">
+                <span class="helper-text">ℹ️ AI审核中的内容仅供查看，无法进行操作</span>
+            </div>
+        </div>
+
+        <% if (user && user.role_level >= 4) { %>
+        <div class="review-list" data-review-list data-tab-content="reports" hidden>
+            <div class="review-loading" hidden>
+                <span>加载中...</span>
+            </div>
+            <div class="review-empty" hidden>
+                <div class="empty-state" data-i18n="review.noReports">暂无举报</div>
+            </div>
+        </div>
         <% } %>
+
+        <div class="pagination" data-pagination hidden>
+            <button class="btn btn-ghost btn-sm" data-page-prev data-i18n="common.prevPage">上一页</button>
+            <span class="page-info"><span data-page-current>1</span> / <span data-page-total>1</span></span>
+            <button class="btn btn-ghost btn-sm" data-page-next data-i18n="common.nextPage">下一页</button>
+        </div>
     </div>
 
     <div class="review-drawer" data-review-drawer hidden>
@@ -92,6 +99,10 @@
             </div>
             <div class="drawer-body" data-drawer-body></div>
             <div class="drawer-footer" data-drawer-footer hidden>
+                <div class="rule-hint">
+                    <span class="hint-icon">💡</span>
+                    <span data-i18n="review.ruleHint">审核理由将通知内容提交者，请客观公正地审核</span>
+                </div>
                 <div class="form-group">
                     <label class="form-label" data-i18n="review.reasonLabel">审核理由（10-200字）</label>
                     <textarea class="form-control" data-review-reason rows="3" placeholder="请输入审核理由" data-i18n-placeholder="review.reasonPlaceholder"></textarea>
@@ -104,13 +115,88 @@
         </div>
     </div>
 
+    <div class="modal" id="level-info-modal" hidden>
+        <div class="modal-backdrop" data-modal-close></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>审核权限说明</h2>
+                <button class="btn btn-ghost" type="button" data-modal-close>×</button>
+            </div>
+            <div class="modal-body">
+                <table class="info-table">
+                    <thead>
+                        <tr>
+                            <th>您的等级</th>
+                            <th>可审核内容范围</th>
+                            <th>可审核申诉范围</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="level-tag">LV3</span></td>
+                            <td>聊天消息（LV1-LV2发布的内容）</td>
+                            <td>LV1-LV2 的申诉</td>
+                        </tr>
+                        <tr>
+                            <td><span class="level-tag">LV4</span></td>
+                            <td>聊天消息、帖子（LV1-LV3发布的内容）</td>
+                            <td>LV1-LV3 的申诉</td>
+                        </tr>
+                        <tr>
+                            <td><span class="level-tag">LV5</span></td>
+                            <td>所有内容（LV1-LV4），但不可自审</td>
+                            <td>LV1-LV4 的申诉</td>
+                        </tr>
+                        <tr>
+                            <td><span class="level-tag">LV5.5</span></td>
+                            <td>所有内容，可临时锁定/禁言</td>
+                            <td>LV1-LV5 的申诉</td>
+                        </tr>
+                        <tr>
+                            <td><span class="level-tag">LV6</span></td>
+                            <td>全部内容，拥有最高权限</td>
+                            <td>所有申诉</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="info-note">
+                    <p><strong>注意：</strong></p>
+                    <ul>
+                        <li>LV5 不可审核自己发布的内容</li>
+                        <li>LV5.5 可临时锁定内容和临时禁言用户（1小时-3天）</li>
+                        <li>LV6 可永久删除内容、修改用户等级、解禁IP</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <style>
+    .review-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    .level-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: var(--surface);
+        padding: 0.25rem 0.75rem;
+        border-radius: 1rem;
+    }
+    .level-number {
+        font-weight: bold;
+        color: var(--primary);
+    }
     .review-tabs {
         display: flex;
         gap: 0.5rem;
         margin-bottom: 1rem;
         border-bottom: 1px solid var(--line);
         padding-bottom: 0.5rem;
+        flex-wrap: wrap;
     }
     .tab-btn {
         padding: 0.5rem 1rem;
@@ -119,6 +205,9 @@
         color: var(--text-secondary);
         cursor: pointer;
         border-radius: 0.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
     }
     .tab-btn:hover {
         background: var(--surface);
@@ -127,38 +216,280 @@
         background: var(--primary);
         color: white;
     }
+    .tab-count {
+        background: rgba(255,255,255,0.2);
+        padding: 0.1rem 0.4rem;
+        border-radius: 0.5rem;
+        font-size: 0.75rem;
+    }
+    .tab-btn:not(.is-active) .tab-count {
+        background: var(--surface-alt);
+        color: var(--text-secondary);
+    }
+    .review-filters {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+    .form-control-sm {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+    }
+    .review-item {
+        display: flex;
+        gap: 1rem;
+        padding: 1rem;
+        margin-bottom: 0.5rem;
+    }
+    .review-item-icon {
+        font-size: 1.5rem;
+        flex-shrink: 0;
+    }
+    .review-item-body {
+        flex: 1;
+        min-width: 0;
+    }
+    .review-item-meta {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+    }
+    .review-item-preview {
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 4rem;
+        overflow: hidden;
+    }
+    .review-item-actions {
+        display: flex;
+        gap: 0.5rem;
+        flex-shrink: 0;
+        align-items: flex-start;
+    }
     .icon-appeal {
         font-size: 1.5rem;
+    }
+    .review-drawer {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1000;
+        display: flex;
+        justify-content: flex-end;
+    }
+    .review-drawer[hidden] {
+        display: none !important;
+    }
+    .drawer-backdrop {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+    }
+    .drawer-content {
+        position: relative;
+        width: 90%;
+        max-width: 600px;
+        background: var(--surface);
+        height: 100%;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+    }
+    .drawer-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        border-bottom: 1px solid var(--line);
+    }
+    .drawer-body {
+        flex: 1;
+        padding: 1rem;
+        overflow-y: auto;
+    }
+    .drawer-footer {
+        padding: 1rem;
+        border-top: 1px solid var(--line);
+    }
+    .detail-section {
+        margin-bottom: 1.5rem;
+    }
+    .detail-section h3 {
+        font-size: 1rem;
+        margin-bottom: 0.5rem;
+        color: var(--primary);
+    }
+    .rule-hint {
+        background: var(--surface-alt);
+        padding: 0.75rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+        display: flex;
+        gap: 0.5rem;
+        align-items: flex-start;
+        font-size: 0.875rem;
+    }
+    .hint-icon {
+        flex-shrink: 0;
+    }
+    .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1100;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    .modal[hidden] {
+        display: none !important;
+    }
+    .modal-backdrop {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+    }
+    .modal-content {
+        position: relative;
+        width: 90%;
+        max-width: 700px;
+        max-height: 90vh;
+        background: var(--surface);
+        border-radius: 0.5rem;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        border-bottom: 1px solid var(--line);
+    }
+    .modal-body {
+        padding: 1rem;
+        overflow-y: auto;
+    }
+    .info-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 1rem;
+        font-size: 0.875rem;
+    }
+    .info-table th,
+    .info-table td {
+        padding: 0.5rem;
+        border: 1px solid var(--line);
+        text-align: left;
+    }
+    .info-table th {
+        background: var(--surface-alt);
+    }
+    .level-tag {
+        background: var(--primary);
+        color: white;
+        padding: 0.1rem 0.4rem;
+        border-radius: 0.25rem;
+        font-weight: bold;
+    }
+    .info-note {
+        background: var(--surface-alt);
+        padding: 1rem;
+        border-radius: 0.5rem;
+        font-size: 0.875rem;
+    }
+    .info-note ul {
+        margin: 0.5rem 0 0 1.5rem;
+    }
+    .info-note li {
+        margin-bottom: 0.25rem;
+    }
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+    .page-info {
+        color: var(--text-secondary);
+    }
+    .report-reason {
+        font-size: 0.875rem;
+        color: var(--danger);
+        margin-top: 0.25rem;
     }
     </style>
 
     <script>
     (function() {
+        var currentTab = 'pending';
+        var currentPage = 1;
+        var totalPages = 1;
+        var currentItemId = null;
+        var currentItemType = null;
+
         var tabBtns = document.querySelectorAll('.tab-btn');
         var tabContents = document.querySelectorAll('[data-tab-content]');
         var drawer = document.querySelector('[data-review-drawer]');
         var drawerBody = document.querySelector('[data-drawer-body]');
         var drawerFooter = document.querySelector('[data-drawer-footer]');
-        var drawerCloseBtns = document.querySelectorAll('[data-drawer-close]');
+        var pagination = document.querySelector('[data-pagination]');
         var reviewReasonInput = document.querySelector('[data-review-reason]');
-        var currentItemId = null;
+        var levelInfoModal = document.getElementById('level-info-modal');
+
+        function showLevelInfo() {
+            if (levelInfoModal) {
+                levelInfoModal.removeAttribute('hidden');
+            }
+        }
+
+        function hideLevelInfo() {
+            if (levelInfoModal) {
+                levelInfoModal.setAttribute('hidden', '');
+            }
+        }
+
+        window.showLevelInfo = showLevelInfo;
+        window.hideLevelInfo = hideLevelInfo;
+
+        function switchTab(tab) {
+            currentTab = tab;
+            currentPage = 1;
+            tabBtns.forEach(function(b) {
+                b.classList.toggle('is-active', b.getAttribute('data-tab') === tab);
+            });
+            tabContents.forEach(function(content) {
+                content.setAttribute('hidden', '');
+                if (content.getAttribute('data-tab-content') === tab) {
+                    content.removeAttribute('hidden');
+                }
+            });
+            loadData();
+        }
 
         tabBtns.forEach(function(btn) {
             btn.addEventListener('click', function() {
-                var tab = this.getAttribute('data-tab');
-                tabBtns.forEach(function(b) { b.classList.remove('is-active'); });
-                this.classList.add('is-active');
-                tabContents.forEach(function(content) {
-                    if (content.getAttribute('data-tab-content') === tab) {
-                        content.removeAttribute('hidden');
-                    } else {
-                        content.setAttribute('hidden', '');
-                    }
-                });
+                switchTab(this.getAttribute('data-tab'));
             });
         });
 
-        drawerCloseBtns.forEach(function(btn) {
+        document.querySelectorAll('[data-drawer-close]').forEach(function(btn) {
             btn.addEventListener('click', function() {
                 drawer.setAttribute('hidden', '');
                 drawerFooter.setAttribute('hidden', '');
@@ -166,76 +497,249 @@
             });
         });
 
-        var detailBtns = document.querySelectorAll('[data-detail]');
-        detailBtns.forEach(function(btn) {
+        document.querySelectorAll('[data-modal-close]').forEach(function(btn) {
             btn.addEventListener('click', function() {
-                var itemId = this.getAttribute('data-detail');
-                currentItemId = itemId;
-                fetch('/api/review/items/' + itemId)
-                    .then(function(res) { return res.json(); })
-                    .then(function(data) {
-                        if (data.error) {
-                            alert(data.error);
-                            return;
-                        }
-                        var item = data.item;
-                        var content = data.content;
-                        var html = '<div class="detail-section">';
-                        html += '<h3>审核项信息</h3>';
-                        html += '<p><strong>类型：</strong>' + item.item_type + '</p>';
-                        html += '<p><strong>提交者：</strong>' + item.author_name + '</p>';
-                        html += '<p><strong>时间：</strong>' + new Date(item.created_at).toLocaleString() + '</p>';
-                        html += '<p><strong>状态：</strong>' + item.status + '</p>';
-                        html += '</div>';
-                        if (content) {
-                            html += '<div class="detail-section">';
-                            html += '<h3>内容详情</h3>';
-                            if (item.item_type === 'post' || item.item_type === 'resource') {
-                                html += '<p>' + (content.title || '') + '</p>';
-                                html += '<div class="markdown-body">' + (content.content || content.description || '') + '</div>';
-                            } else if (item.item_type === 'chat') {
-                                html += '<div class="chat-bubble"><p>' + content.content + '</p></div>';
-                            }
-                            html += '</div>';
-                        }
-                        if (data.history && data.history.length) {
-                            html += '<div class="detail-section">';
-                            html += '<h3>审核历史</h3>';
-                            data.history.forEach(function(h) {
-                                html += '<p><strong>' + h.reviewer_name + '</strong>: ' + h.action + ' - ' + (h.notes || '') + ' (' + new Date(h.created_at).toLocaleString() + ')</p>';
-                            });
-                            html += '</div>';
-                        }
-                        drawerBody.innerHTML = html;
-                        drawer.removeAttribute('hidden');
-                        drawerFooter.removeAttribute('hidden');
-                    })
-                    .catch(function(err) {
-                        console.error('Error loading detail:', err);
-                        alert('加载详情失败');
-                    });
+                if (levelInfoModal) {
+                    levelInfoModal.setAttribute('hidden', '');
+                }
             });
         });
 
-        var approveBtns = document.querySelectorAll('[data-approve]');
-        var rejectBtns = document.querySelectorAll('[data-reject]');
-        var appealApproveBtns = document.querySelectorAll('[data-appeal-approve]');
-        var appealRejectBtns = document.querySelectorAll('[data-appeal-reject]');
+        if (levelInfoModal) {
+            var backdrop = levelInfoModal.querySelector('.modal-backdrop');
+            if (backdrop) {
+                backdrop.addEventListener('click', function() {
+                    levelInfoModal.setAttribute('hidden', '');
+                });
+            }
+        }
 
-        function handleReviewAction(itemId, action, type) {
-            var reason = prompt('请输入审核理由（10-200字）：');
-            var apiUrl, bodyData;
+        function loadData() {
+            var list = document.querySelector('[data-tab-content="' + currentTab + '"]');
+            var loading = list.querySelector('.review-loading');
+            var empty = list.querySelector('.review-empty');
+            var items = list.querySelectorAll('.review-item');
 
-            if (type === 'appeal') {
-                apiUrl = '/api/review/' + itemId + '/appeal-decide';
-                bodyData = { decision: action, review_note: reason || '' };
-            } else {
-                if (action === 'approve') {
-                    apiUrl = '/api/review/items/' + itemId + '/approve';
-                } else {
-                    apiUrl = '/api/review/items/' + itemId + '/reject';
+            items.forEach(function(i) { i.remove(); });
+            loading.removeAttribute('hidden');
+            empty.setAttribute('hidden', '');
+            pagination.setAttribute('hidden', '');
+
+            var apiUrl = '';
+            var typeFilter = document.getElementById('filter-type')?.value || '';
+            var statusFilter = document.getElementById('filter-status')?.value || 'pending';
+
+            if (currentTab === 'pending') {
+                apiUrl = '/api/review/items?page=' + currentPage + '&status=' + statusFilter;
+                if (typeFilter) apiUrl += '&type=' + typeFilter;
+            } else if (currentTab === 'appeals') {
+                apiUrl = '/api/review/appeals/list?page=' + currentPage;
+            } else if (currentTab === 'ai-reviewing') {
+                apiUrl = '/api/review/ai-reviewing?page=' + currentPage;
+                if (typeFilter) apiUrl += '&type=' + typeFilter;
+            } else if (currentTab === 'reports') {
+                apiUrl = '/api/reports/list?page=' + currentPage + '&status=' + statusFilter;
+            } else if (currentTab === 'ai-reviewing') {
+                apiUrl = '/api/review/ai-reviewing?page=' + currentPage;
+                if (typeFilter) apiUrl += '&type=' + typeFilter;
+            }
+
+            fetch(apiUrl)
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    loading.setAttribute('hidden', '');
+                    if (currentTab === 'pending') {
+                        updateCountBadge('pending', data.pagination?.totalItems || 0);
+                        if (data.items && data.items.length) {
+                            renderItems(list, data.items, 'item');
+                            if (data.pagination && data.pagination.totalPages > 1) {
+                                totalPages = data.pagination.totalPages;
+                                updatePagination();
+                                pagination.removeAttribute('hidden');
+                            }
+                        } else {
+                            empty.removeAttribute('hidden');
+                        }
+                    } else if (currentTab === 'appeals') {
+                        updateCountBadge('appeals', data.pagination?.totalItems || 0);
+                        if (data.appeals && data.appeals.length) {
+                            renderItems(list, data.appeals, 'appeal');
+                            if (data.pagination && data.pagination.totalPages > 1) {
+                                totalPages = data.pagination.totalPages;
+                                updatePagination();
+                                pagination.removeAttribute('hidden');
+                            }
+                        } else {
+                            empty.removeAttribute('hidden');
+                        }
+                    } else if (currentTab === 'ai-reviewing') {
+                        updateCountBadge('ai-reviewing', data.pagination?.totalItems || 0);
+                        if (data.items && data.items.length) {
+                            renderItems(list, data.items, 'item');
+                            if (data.pagination && data.pagination.totalPages > 1) {
+                                totalPages = data.pagination.totalPages;
+                                updatePagination();
+                                pagination.removeAttribute('hidden');
+                            }
+                        } else {
+                            empty.removeAttribute('hidden');
+                        }
+                    } else if (currentTab === 'reports') {
+                        updateCountBadge('reports', data.pagination?.totalItems || 0);
+                        if (data.reports && data.reports.length) {
+                            renderItems(list, data.reports, 'report');
+                            if (data.pagination && data.pagination.totalPages > 1) {
+                                totalPages = data.pagination.totalPages;
+                                updatePagination();
+                                pagination.removeAttribute('hidden');
+                            }
+                        } else {
+                            empty.removeAttribute('hidden');
+                        }
+                    }
+                })
+                .catch(function(err) {
+                    console.error('Load error:', err);
+                    loading.setAttribute('hidden', '');
+                    empty.removeAttribute('hidden');
+                });
+        }
+
+        function updateCountBadge(tab, count) {
+            var badge = document.querySelector('[data-count="' + tab + '"]');
+            if (badge) badge.textContent = count;
+        }
+
+        function updatePagination() {
+            document.querySelector('[data-page-current]').textContent = currentPage;
+            document.querySelector('[data-page-total]').textContent = totalPages;
+            document.querySelector('[data-page-prev]').disabled = currentPage <= 1;
+            document.querySelector('[data-page-next]').disabled = currentPage >= totalPages;
+        }
+
+        function renderItems(container, items, type) {
+            items.forEach(function(item) {
+                var div = document.createElement('div');
+                div.className = 'review-item card';
+
+                var icon = '';
+                var typeLabel = '';
+                var authorName = '';
+                var content = '';
+                var time = '';
+                var id = '';
+
+                if (type === 'item') {
+                    icon = item.item_type === 'post' ? '📝' : item.item_type === 'chat' ? '💬' : '📎';
+                    typeLabel = item.item_type === 'post' ? '帖子' : item.item_type === 'chat' ? '聊天' : '资源';
+                    authorName = item.author_name || '未知';
+                    content = item.payload || '';
+                    time = item.created_at;
+                    id = item.id;
+
+                    div.innerHTML = '<div class="review-item-icon"><span>' + icon + '</span></div>' +
+                        '<div class="review-item-body">' +
+                        '<div class="review-item-meta">' +
+                        '<span class="tag">' + typeLabel + '</span>' +
+                        '<span>' + authorName + '</span>' +
+                        '<span>' + new Date(time).toLocaleString() + '</span>' +
+                        '</div>' +
+                        '<p class="review-item-preview">' + escapeHtml(content) + '</p>' +
+                        '</div>' +
+                        '<div class="review-item-actions">' +
+                        '<button class="btn btn-primary btn-sm" type="button" data-action="approve" data-id="' + id + '">通过</button>' +
+                        '<button class="btn btn-danger btn-sm" type="button" data-action="reject" data-id="' + id + '">驳回</button>' +
+                        '<button class="btn btn-ghost btn-sm" type="button" data-action="detail" data-id="' + id + '">详情</button>' +
+                        '</div>';
+                } else if (type === 'appeal') {
+                    icon = '⚖️';
+                    typeLabel = item.content_type || '未知';
+                    authorName = item.author_name || '未知';
+                    content = item.appeal_reason || '';
+                    time = item.created_at;
+                    id = item.id;
+
+                    div.innerHTML = '<div class="review-item-icon"><span>' + icon + '</span></div>' +
+                        '<div class="review-item-body">' +
+                        '<div class="review-item-meta">' +
+                        '<span class="tag">申诉-' + typeLabel + '</span>' +
+                        '<span>' + authorName + '</span>' +
+                        '<span>' + new Date(time).toLocaleString() + '</span>' +
+                        '</div>' +
+                        '<p class="review-item-preview">' + escapeHtml(content) + '</p>' +
+                        '</div>' +
+                        '<div class="review-item-actions">' +
+                        '<button class="btn btn-primary btn-sm" type="button" data-action="appeal-approve" data-id="' + id + '">批准</button>' +
+                        '<button class="btn btn-danger btn-sm" type="button" data-action="appeal-reject" data-id="' + id + '">驳回</button>' +
+                        '</div>';
+                } else if (type === 'report') {
+                    icon = '🚩';
+                    typeLabel = item.target_type || '未知';
+                    authorName = item.reporter_name || '举报人';
+                    content = item.reason || '';
+                    time = item.created_at;
+                    id = item.id;
+
+                    div.innerHTML = '<div class="review-item-icon"><span>' + icon + '</span></div>' +
+                        '<div class="review-item-body">' +
+                        '<div class="review-item-meta">' +
+                        '<span class="tag">举报-' + typeLabel + '</span>' +
+                        '<span>举报人: ' + authorName + '</span>' +
+                        '<span>' + new Date(time).toLocaleString() + '</span>' +
+                        '</div>' +
+                        '<p class="review-item-preview report-reason">举报原因: ' + escapeHtml(content) + '</p>' +
+                        '</div>' +
+                        '<div class="review-item-actions">' +
+                        '<button class="btn btn-primary btn-sm" type="button" data-action="report-verify" data-id="' + id + '">成立</button>' +
+                        '<button class="btn btn-danger btn-sm" type="button" data-action="report-dismiss" data-id="' + id + '">不成立</button>' +
+                        '</div>';
                 }
-                bodyData = { reason: reason || '' };
+
+                container.appendChild(div);
+            });
+
+            container.querySelectorAll('[data-action]').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var action = this.getAttribute('data-action');
+                    var id = this.getAttribute('data-id');
+                    handleAction(action, id);
+                });
+            });
+        }
+
+        function handleAction(action, id) {
+            if (action === 'detail') {
+                showDetail(id);
+                return;
+            }
+
+            var reason = prompt('请输入审核理由（10-200字）：');
+            if (!reason || reason.length < 10) {
+                alert('审核理由需要在10-200字之间');
+                return;
+            }
+
+            var apiUrl = '';
+            var bodyData = {};
+
+            if (action === 'approve') {
+                apiUrl = '/api/review/items/' + id + '/approve';
+                bodyData = { reason: reason };
+            } else if (action === 'reject') {
+                apiUrl = '/api/review/items/' + id + '/reject';
+                bodyData = { reason: reason };
+            } else if (action === 'appeal-approve') {
+                apiUrl = '/api/review/' + id + '/appeal-decide';
+                bodyData = { decision: 'approve', review_note: reason };
+            } else if (action === 'appeal-reject') {
+                apiUrl = '/api/review/' + id + '/appeal-decide';
+                bodyData = { decision: 'reject', review_note: reason };
+            } else if (action === 'report-verify') {
+                apiUrl = '/api/reports/' + id + '/verify';
+                bodyData = { reason: reason };
+            } else if (action === 'report-dismiss') {
+                apiUrl = '/api/reports/' + id + '/dismiss';
+                bodyData = { reason: reason };
             }
 
             fetch(apiUrl, {
@@ -248,75 +752,102 @@
                 if (result.error) {
                     alert(result.error);
                 } else {
-                    var selector = type === 'appeal'
-                        ? '[data-appeal-id="' + itemId + '"]'
-                        : '[data-item-id="' + itemId + '"]';
-                    var item = document.querySelector(selector);
-                    if (item) item.remove();
-                    if (typeof showToast === 'function') {
-                        showToast(action === 'approve' ? '已通过' : '已不通过', 'success');
-                    } else {
-                        alert(action === 'approve' ? '已通过' : '已不通过');
-                    }
+                    alert(result.message || '操作成功');
+                    loadData();
                 }
             })
             .catch(function(err) {
-                console.error('Review error:', err);
+                console.error('Action error:', err);
                 alert('操作失败，请稍后重试');
             });
         }
 
-        approveBtns.forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                var itemId = this.getAttribute('data-approve');
-                handleReviewAction(itemId, 'approve', 'item');
-            });
-        });
+        function showDetail(id) {
+            currentItemId = id;
+            drawerBody.innerHTML = '<p>加载中...</p>';
+            drawer.removeAttribute('hidden');
+            drawerFooter.removeAttribute('hidden');
 
-        rejectBtns.forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                var itemId = this.getAttribute('data-reject');
-                handleReviewAction(itemId, 'reject', 'item');
-            });
-        });
-
-        appealApproveBtns.forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                var appealId = this.getAttribute('data-appeal-approve');
-                handleReviewAction(appealId, 'approve', 'appeal');
-            });
-        });
-
-        appealRejectBtns.forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                var appealId = this.getAttribute('data-appeal-reject');
-                handleReviewAction(appealId, 'reject', 'appeal');
-            });
-        });
-
-        var confirmApproveBtn = document.querySelector('[data-confirm-approve]');
-        var confirmRejectBtn = document.querySelector('[data-confirm-reject]');
-
-        if (confirmApproveBtn) {
-            confirmApproveBtn.addEventListener('click', function() {
-                if (currentItemId) {
-                    handleReviewAction(currentItemId, 'approve', 'item');
-                    drawer.setAttribute('hidden', '');
-                    drawerFooter.setAttribute('hidden', '');
-                }
-            });
+            fetch('/api/review/items/' + id)
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    if (data.error) {
+                        drawerBody.innerHTML = '<p class="error">' + data.error + '</p>';
+                        return;
+                    }
+                    var item = data.item;
+                    var content = data.content;
+                    var html = '<div class="detail-section">';
+                    html += '<h3>审核项信息</h3>';
+                    html += '<p><strong>类型：</strong>' + (item.item_type === 'post' ? '帖子' : item.item_type === 'chat' ? '聊天消息' : '资源') + '</p>';
+                    html += '<p><strong>提交者：</strong>' + (item.author_name || '未知') + '</p>';
+                    html += '<p><strong>时间：</strong>' + new Date(item.created_at).toLocaleString() + '</p>';
+                    html += '<p><strong>状态：</strong>' + item.status + '</p>';
+                    html += '</div>';
+                    if (content) {
+                        html += '<div class="detail-section">';
+                        html += '<h3>内容详情</h3>';
+                        if (item.item_type === 'post' || item.item_type === 'resource') {
+                            html += '<p><strong>标题：</strong>' + escapeHtml(content.title || '') + '</p>';
+                            html += '<div class="markdown-body">' + (content.content || content.description || '') + '</div>';
+                        } else if (item.item_type === 'chat') {
+                            html += '<div class="chat-bubble"><p>' + escapeHtml(content.content || '') + '</p></div>';
+                        }
+                        html += '</div>';
+                    }
+                    if (data.history && data.history.length) {
+                        html += '<div class="detail-section">';
+                        html += '<h3>审核历史</h3>';
+                        data.history.forEach(function(h) {
+                            html += '<p><strong>' + (h.reviewer_name || '未知') + '</strong>: ' + h.action + ' - ' + (h.notes || h.reason || '') + ' (' + new Date(h.created_at).toLocaleString() + ')</p>';
+                        });
+                        html += '</div>';
+                    }
+                    drawerBody.innerHTML = html;
+                })
+                .catch(function(err) {
+                    console.error('Load detail error:', err);
+                    drawerBody.innerHTML = '<p class="error">加载详情失败</p>';
+                });
         }
 
-        if (confirmRejectBtn) {
-            confirmRejectBtn.addEventListener('click', function() {
-                if (currentItemId) {
-                    var reason = reviewReasonInput ? reviewReasonInput.value : '';
-                    handleReviewAction(currentItemId, 'reject', 'item');
-                    drawer.setAttribute('hidden', '');
-                    drawerFooter.setAttribute('hidden', '');
-                }
-            });
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
+
+        document.querySelector('[data-page-prev]')?.addEventListener('click', function() {
+            if (currentPage > 1) {
+                currentPage--;
+                loadData();
+            }
+        });
+
+        document.querySelector('[data-page-next]')?.addEventListener('click', function() {
+            if (currentPage < totalPages) {
+                currentPage++;
+                loadData();
+            }
+        });
+
+        document.getElementById('filter-type')?.addEventListener('change', loadData);
+        document.getElementById('filter-status')?.addEventListener('change', loadData);
+
+        document.querySelector('[data-confirm-approve]')?.addEventListener('click', function() {
+            if (currentItemId) {
+                handleAction('approve', currentItemId);
+                drawer.setAttribute('hidden', '');
+            }
+        });
+
+        document.querySelector('[data-confirm-reject]')?.addEventListener('click', function() {
+            if (currentItemId) {
+                handleAction('reject', currentItemId);
+                drawer.setAttribute('hidden', '');
+            }
+        });
+
+        loadData();
     })();
     </script>
 <%- include('partials/footer') %>

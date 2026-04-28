@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= pageTitle ? `${pageTitle} · BG Hub` : 'BG Hub' %></title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <%- include('../partials/header') %>
+
+    <div class="grades-admin-page">
+        <div class="page-header">
+            <h1 data-i18n="admin.grades">年级班级管理</h1>
+            <p class="page-subtitle">配置年级分班和学科权限</p>
+        </div>
+
+        <div class="grades-admin-layout">
+            <section class="class-management">
+                <h2>班级管理</h2>
+                <p class="helper-text">为 G6-G8 年级设置班级。G9-G12 不分班，无需设置。</p>
+
+                <div class="grade-tabs">
+                    <button class="grade-tab active" data-grade="G6">G6</button>
+                    <button class="grade-tab" data-grade="G7">G7</button>
+                    <button class="grade-tab" data-grade="G8">G8</button>
+                </div>
+
+                <div class="class-list" id="class-list">
+                    <div class="loading-state">加载中...</div>
+                </div>
+
+                <form class="add-class-form" id="add-class-form">
+                    <input type="text" name="class_name" class="form-control" placeholder="班级名称，如：A" required maxlength="10">
+                    <button type="submit" class="btn btn-primary">添加班级</button>
+                </form>
+            </section>
+
+            <section class="subject-permissions">
+                <h2>学科权限</h2>
+                <p class="helper-text">设置各年级可访问的学科。G6-G8 可额外设置是否跨班共享数据。</p>
+
+                <form id="permissions-form">
+                    <div class="permissions-table-wrapper">
+                        <table class="permissions-matrix">
+                            <thead>
+                                <tr>
+                                    <th class="sticky-col">学科</th>
+                                    <% grades.forEach(grade => { %>
+                                        <th class="grade-header <%= ['G6','G7','G8'].includes(grade) ? 'has-classes' : '' %>">
+                                            <%= grade %>
+                                            <% if (['G6','G7','G8'].includes(grade)) { %>
+                                                <span class="shared-hint">共享</span>
+                                            <% } %>
+                                        </th>
+                                    <% }) %>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% boards.forEach(board => { %>
+                                    <tr data-board-id="<%= board.id %>">
+                                        <td class="sticky-col board-name-cell">
+                                            <span class="board-dot" style="background: <%= board.color %>"></span>
+                                            <span class="board-name"><%= board.name %></span>
+                                            <div class="board-actions">
+                                                <button type="button" class="btn btn-xs btn-ghost" onclick="showEditSubjectModal(<%= board.id %>)">编辑</button>
+                                                <button type="button" class="btn btn-xs btn-danger-ghost" onclick="showDeleteSubjectModal(<%= board.id %>)">删除</button>
+                                            </div>
+                                        </td>
+                                        <% grades.forEach(grade => {
+                                            const perm = permissions[board.id] && permissions[board.id][grade];
+                                            const isEnabled = perm !== null;
+                                            const isShared = perm && perm.is_shared;
+                                            const isG6G8 = ['G6','G7','G8'].includes(grade);
+                                        %>
+                                            <td class="permission-cell <%= isG6G8 ? 'g6g8-cell' : '' %>" data-grade="<%= grade %>">
+                                                <label class="permission-toggle">
+                                                    <input type="checkbox"
+                                                           class="perm-enabled"
+                                                           data-board-id="<%= board.id %>"
+                                                           data-grade="<%= grade %>"
+                                                           <%= isEnabled ? 'checked' : '' %>>
+                                                    <% if (isG6G8) { %>
+                                                        <span class="shared-toggle <%= isEnabled && isShared ? 'active' : '' %>" title="跨班共享">
+                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                                                <circle cx="9" cy="7" r="4"/>
+                                                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                                                                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                                                            </svg>
+                                                        </span>
+                                                    <% } %>
+                                                </label>
+                                            </td>
+                                        <% }) %>
+                                    </tr>
+                                <% }) %>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="permissions-actions">
+                        <button type="submit" class="btn btn-primary">保存权限设置</button>
+                        <span class="save-status" id="save-status"></span>
+                    </div>
+
+                    <div class="batch-actions">
+                        <span class="batch-label">批量操作：</span>
+                        <button type="button" class="btn btn-xs btn-ghost" onclick="batchSelectAllShared()">全选共享</button>
+                        <button type="button" class="btn btn-xs btn-ghost" onclick="batchUnselectAllShared()">全不选共享</button>
+                        <button type="button" class="btn btn-xs btn-ghost" onclick="batchSelectAllAccess()">全选可访问</button>
+                        <button type="button" class="btn btn-xs btn-ghost" onclick="batchUnselectAllAccess()">全不选可访问</button>
+                    </div>
+
+                    <div class="add-subject-action">
+                        <button type="button" class="btn btn-primary" onclick="showAddSubjectModal()">+ 添加新学科</button>
+                    </div>
+                </form>
+            </section>
+        </div>
+    </div>
+
+    <div class="modal modal-hidden" id="edit-class-modal">
+        <div class="modal-backdrop" onclick="hideEditClassModal()"></div>
+        <div class="modal-content">
+            <h3>编辑班级</h3>
+            <form id="edit-class-form">
+                <input type="hidden" name="class_id" id="edit-class-id">
+                <label class="form-group">
+                    <span class="form-label">班级名称</span>
+                    <input type="text" name="class_name" id="edit-class-name" class="form-control" required maxlength="10">
+                </label>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="hideEditClassModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal modal-hidden" id="delete-class-modal">
+        <div class="modal-backdrop" onclick="hideDeleteClassModal()"></div>
+        <div class="modal-content">
+            <h3>确认删除班级</h3>
+            <p>确定要删除班级 "<span id="delete-class-name"></span>" 吗？此操作不可撤销。</p>
+            <form id="delete-class-form">
+                <input type="hidden" name="class_id" id="delete-class-id">
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="hideDeleteClassModal()">取消</button>
+                    <button type="submit" class="btn btn-danger">删除</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal modal-hidden" id="edit-subject-modal">
+        <div class="modal-backdrop" onclick="hideEditSubjectModal()"></div>
+        <div class="modal-content">
+            <h3>编辑学科</h3>
+            <form id="edit-subject-form">
+                <input type="hidden" name="subject_id" id="edit-subject-id">
+                <label class="form-group">
+                    <span class="form-label">学科名称</span>
+                    <input type="text" name="name" id="edit-subject-name" class="form-control" required maxlength="50">
+                </label>
+                <label class="form-group">
+                    <span class="form-label">URL 标识 (slug)</span>
+                    <input type="text" name="slug" id="edit-subject-slug" class="form-control" required maxlength="30" placeholder="如：mathematics">
+                    <span class="helper-text">用于 URL 路径，仅支持英文小写字母和数字</span>
+                </label>
+                <label class="form-group">
+                    <span class="form-label">颜色标识 (RGB)</span>
+                    <input type="text" name="color" id="edit-subject-color" class="form-control" placeholder="#4f46e5" required maxlength="7" pattern="^#[0-9A-Fa-f]{6}$">
+                    <span class="helper-text">输入十六进制颜色值，如 #4f46e5</span>
+                </label>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="hideEditSubjectModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal modal-hidden" id="delete-subject-modal">
+        <div class="modal-backdrop" onclick="hideDeleteSubjectModal()"></div>
+        <div class="modal-content">
+            <h3>确认删除学科</h3>
+            <p>确定要删除学科 "<span id="delete-subject-name"></span>" 吗？</p>
+            <p class="warning-text">此操作将同时删除该学科的所有权限配置，且不可撤销。</p>
+            <form id="delete-subject-form">
+                <input type="hidden" name="subject_id" id="delete-subject-id">
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="hideDeleteSubjectModal()">取消</button>
+                    <button type="submit" class="btn btn-danger">删除</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal modal-hidden" id="add-subject-modal">
+        <div class="modal-backdrop" onclick="hideAddSubjectModal()"></div>
+        <div class="modal-content">
+            <h3>添加新学科</h3>
+            <form id="add-subject-form">
+                <label class="form-group">
+                    <span class="form-label">学科名称</span>
+                    <input type="text" name="name" id="add-subject-name" class="form-control" required maxlength="50" placeholder="如：数学、英语">
+                </label>
+                <label class="form-group">
+                    <span class="form-label">颜色标识 (RGB)</span>
+                    <input type="text" name="color" id="add-subject-color" class="form-control" placeholder="#4f46e5" required maxlength="7" pattern="^#[0-9A-Fa-f]{6}$">
+                    <span class="helper-text">输入十六进制颜色值，如 #4f46e5</span>
+                </label>
+                <label class="form-group">
+                    <span class="form-label">URL 标识 (slug)</span>
+                    <input type="text" name="slug" id="add-subject-slug" class="form-control" required maxlength="50" placeholder="如：mathematics、english">
+                    <span class="helper-text">用于 URL 路径，仅支持英文小写字母和数字</span>
+                </label>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="hideAddSubjectModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">添加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    let boardsData = <%- JSON.stringify(boards) %>;
+
+    function showEditSubjectModal(boardId) {
+        const board = boardsData.find(b => b.id === boardId);
+        if (!board) return;
+
+        document.getElementById('edit-subject-id').value = board.id;
+        document.getElementById('edit-subject-name').value = board.name;
+        document.getElementById('edit-subject-slug').value = board.slug || '';
+        document.getElementById('edit-subject-color').value = board.color;
+        document.getElementById('edit-subject-modal').classList.remove('modal-hidden');
+    }
+
+    function hideEditSubjectModal() {
+        document.getElementById('edit-subject-modal').classList.add('modal-hidden');
+    }
+
+    function showDeleteSubjectModal(boardId) {
+        const board = boardsData.find(b => b.id === boardId);
+        if (!board) return;
+
+        document.getElementById('delete-subject-id').value = board.id;
+        document.getElementById('delete-subject-name').textContent = board.name;
+        document.getElementById('delete-subject-modal').classList.remove('modal-hidden');
+    }
+
+    function hideDeleteSubjectModal() {
+        document.getElementById('delete-subject-modal').classList.add('modal-hidden');
+    }
+
+    function showAddSubjectModal() {
+        document.getElementById('add-subject-name').value = '';
+        document.getElementById('add-subject-color').value = '#4f46e5';
+        document.getElementById('add-subject-slug').value = '';
+        document.getElementById('add-subject-modal').classList.remove('modal-hidden');
+    }
+
+    function hideAddSubjectModal() {
+        document.getElementById('add-subject-modal').classList.add('modal-hidden');
+    }
+
+    document.getElementById('add-subject-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        const data = {
+            name: formData.get('name'),
+            color: formData.get('color'),
+            slug: formData.get('slug')
+        };
+
+        if (!/^[a-z][a-z0-9_-]*$/.test(data.slug)) {
+            alert('URL 标识只能包含英文小写字母、数字和连字符，且必须以字母开头');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/admin/subjects', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+
+            if (!res.ok) {
+                alert(result.error || '添加失败');
+                return;
+            }
+
+            boardsData.push({
+                id: result.id,
+                name: data.name,
+                slug: data.slug,
+                color: data.color
+            });
+            window.location.reload();
+        } catch (err) {
+            alert('添加失败: ' + err.message);
+        }
+    });
+
+    document.getElementById('edit-subject-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        const subjectId = parseInt(formData.get('subject_id'));
+        const data = {
+            name: formData.get('name'),
+            slug: formData.get('slug'),
+            color: formData.get('color')
+        };
+
+        try {
+            const res = await fetch(`/api/admin/subjects/${subjectId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+
+            if (!res.ok) {
+                alert(result.error || '更新失败');
+                return;
+            }
+
+            const board = boardsData.find(b => b.id === subjectId);
+            if (board) {
+                board.name = data.name;
+                board.slug = data.slug;
+                board.color = data.color;
+            }
+
+            window.location.reload();
+        } catch (err) {
+            alert('更新失败: ' + err.message);
+        }
+    });
+
+    document.getElementById('delete-subject-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const subjectId = parseInt(document.getElementById('delete-subject-id').value);
+
+        try {
+            const res = await fetch(`/api/admin/subjects/${subjectId}`, {
+                method: 'DELETE'
+            });
+            const result = await res.json();
+
+            if (!res.ok) {
+                alert(result.error || '删除失败');
+                return;
+            }
+
+            window.location.reload();
+        } catch (err) {
+            alert('删除失败: ' + err.message);
+        }
+    });
+
+    function batchSelectAllShared() {
+        document.querySelectorAll('.perm-enabled:checked').forEach(cb => {
+            const cell = cb.closest('.permission-cell');
+            const sharedToggle = cell.querySelector('.shared-toggle');
+            if (sharedToggle) {
+                sharedToggle.classList.add('active');
+            }
+        });
+    }
+
+    function batchUnselectAllShared() {
+        document.querySelectorAll('.shared-toggle.active').forEach(toggle => {
+            toggle.classList.remove('active');
+        });
+    }
+
+    function batchSelectAllAccess() {
+        document.querySelectorAll('.perm-enabled').forEach(cb => { cb.checked = true; });
+        batchSelectAllShared();
+    }
+
+    function batchUnselectAllAccess() {
+        document.querySelectorAll('.perm-enabled').forEach(cb => { cb.checked = false; });
+        batchUnselectAllShared();
+    }
+
+    const ALL_GRADES = <%- JSON.stringify(grades) %>;
+    let currentGrade = 'G6';
+    let classesData = <%- JSON.stringify(classes) %>;
+
+    function renderClassList() {
+        const container = document.getElementById('class-list');
+        const classes = classesData[currentGrade] || [];
+
+        if (classes.length === 0) {
+            container.innerHTML = '<div class="empty-state">该年级尚未设置班级</div>';
+            return;
+        }
+
+        container.innerHTML = classes.map(cls => `
+            <div class="class-item" data-class-id="${cls.id}">
+                <span class="class-name">${escapeHtml(cls.class_name)}</span>
+                <div class="class-actions">
+                    <button type="button" class="btn btn-sm btn-ghost" onclick="showEditClassModal(${cls.id})">编辑</button>
+                    <button type="button" class="btn btn-sm btn-danger" onclick="showDeleteClassModal(${cls.id})">删除</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    document.querySelectorAll('.grade-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.grade-tab').forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            currentGrade = this.dataset.grade;
+            renderClassList();
+        });
+    });
+
+    document.getElementById('add-class-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        const data = {
+            grade: currentGrade,
+            class_name: formData.get('class_name')
+        };
+
+        try {
+            const res = await fetch('/api/admin/grades/classes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+
+            if (!res.ok) {
+                alert(result.error || '添加失败');
+                return;
+            }
+
+            if (!classesData[currentGrade]) classesData[currentGrade] = [];
+            classesData[currentGrade].push({
+                id: result.id,
+                grade: currentGrade,
+                class_name: result.class_name
+            });
+            classesData[currentGrade].sort((a, b) => a.class_name.localeCompare(b.class_name));
+            renderClassList();
+            this.reset();
+        } catch (err) {
+            alert('添加失败: ' + err.message);
+        }
+    });
+
+    function showEditClassModal(classId) {
+        const cls = classesData[currentGrade].find(c => c.id === classId);
+        if (!cls) return;
+
+        document.getElementById('edit-class-id').value = cls.id;
+        document.getElementById('edit-class-name').value = cls.class_name;
+        document.getElementById('edit-class-modal').classList.remove('modal-hidden');
+    }
+
+    function hideEditClassModal() {
+        document.getElementById('edit-class-modal').classList.add('modal-hidden');
+    }
+
+    document.getElementById('edit-class-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        const classId = parseInt(formData.get('class_id'));
+        const data = {
+            class_name: formData.get('class_name')
+        };
+
+        try {
+            const res = await fetch(`/api/admin/grades/classes/${classId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+
+            if (!res.ok) {
+                alert(result.error || '更新失败');
+                return;
+            }
+
+            const cls = classesData[currentGrade].find(c => c.id === classId);
+            if (cls) {
+                cls.class_name = data.class_name;
+            }
+            classesData[currentGrade].sort((a, b) => a.class_name.localeCompare(b.class_name));
+            renderClassList();
+            hideEditClassModal();
+        } catch (err) {
+            alert('更新失败: ' + err.message);
+        }
+    });
+
+    function showDeleteClassModal(classId) {
+        const cls = classesData[currentGrade].find(c => c.id === classId);
+        if (!cls) return;
+
+        document.getElementById('delete-class-id').value = cls.id;
+        document.getElementById('delete-class-name').textContent = cls.class_name;
+        document.getElementById('delete-class-modal').classList.remove('modal-hidden');
+    }
+
+    function hideDeleteClassModal() {
+        document.getElementById('delete-class-modal').classList.add('modal-hidden');
+    }
+
+    document.getElementById('delete-class-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const classId = parseInt(document.getElementById('delete-class-id').value);
+
+        try {
+            const res = await fetch(`/api/admin/grades/classes/${classId}`, {
+                method: 'DELETE'
+            });
+            const result = await res.json();
+
+            if (!res.ok) {
+                alert(result.error || '删除失败');
+                return;
+            }
+
+            classesData[currentGrade] = classesData[currentGrade].filter(c => c.id !== classId);
+            renderClassList();
+            hideDeleteClassModal();
+        } catch (err) {
+            alert('删除失败: ' + err.message);
+        }
+    });
+
+    document.querySelectorAll('.perm-enabled').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const cell = this.closest('.permission-cell');
+            const sharedToggle = cell.querySelector('.shared-toggle');
+            if (sharedToggle) {
+                if (this.checked) {
+                    sharedToggle.classList.add('enabled');
+                } else {
+                    sharedToggle.classList.remove('enabled');
+                }
+            }
+        });
+    });
+
+    document.getElementById('permissions-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const statusEl = document.getElementById('save-status');
+        statusEl.textContent = '保存中...';
+
+        const permissions = [];
+
+        document.querySelectorAll('.perm-enabled').forEach(checkbox => {
+            const boardId = parseInt(checkbox.dataset.boardId);
+            const grade = checkbox.dataset.grade;
+            const cell = checkbox.closest('.permission-cell');
+            const sharedToggle = cell.querySelector('.shared-toggle');
+            const isChecked = checkbox.checked;
+            const isShared = isChecked && sharedToggle && sharedToggle.classList.contains('active');
+
+            permissions.push({
+                board_id: boardId,
+                grade: grade,
+                is_enabled: isChecked ? 1 : 0,
+                is_shared: isShared ? 1 : 0
+            });
+        });
+
+        try {
+            const res = await fetch('/api/admin/grades/subjects/batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ permissions })
+            });
+
+            if (!res.ok) {
+                const result = await res.json();
+                throw new Error(result.error || '保存失败');
+            }
+
+            statusEl.textContent = '已保存 ✓';
+            setTimeout(() => { statusEl.textContent = ''; }, 3000);
+        } catch (err) {
+            statusEl.textContent = '保存失败';
+            alert('保存失败: ' + err.message);
+        }
+    });
+
+    document.querySelectorAll('.shared-toggle').forEach(toggle => {
+        toggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            this.classList.toggle('active');
+            const checkbox = this.closest('.permission-cell').querySelector('.perm-enabled');
+            if (this.classList.contains('active')) {
+                checkbox.checked = true;
+            }
+        });
+    });
+
+    renderClassList();
+    </script>
+
+    <style>
+    .grades-admin-page {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 24px 0;
+    }
+
+    .page-header {
+        margin-bottom: 24px;
+    }
+
+    .page-header h1 {
+        font-size: 1.5rem;
+        color: var(--text);
+        margin: 0 0 4px 0;
+    }
+
+    .page-subtitle {
+        color: var(--muted);
+        font-size: 0.88rem;
+        margin: 0;
+    }
+
+    .grades-admin-layout {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 24px;
+    }
+
+    @media (max-width: 900px) {
+        .grades-admin-layout {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .class-management {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 20px;
+    }
+
+    .class-management h2 {
+        font-size: 1.1rem;
+        margin: 0 0 8px 0;
+    }
+
+    .grade-tabs {
+        display: flex;
+        gap: 8px;
+        margin: 16px 0;
+    }
+
+    .grade-tab {
+        padding: 8px 16px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--surface);
+        color: var(--text);
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+
+    .grade-tab:hover {
+        background: var(--surface-hover);
+    }
+
+    .grade-tab.active {
+        background: var(--primary);
+        color: white;
+        border-color: var(--primary);
+    }
+
+    .class-list {
+        min-height: 100px;
+        margin-bottom: 16px;
+    }
+
+    .class-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        background: var(--surface-hover);
+        border-radius: 6px;
+        margin-bottom: 8px;
+    }
+
+    .class-item .class-name {
+        font-weight: 600;
+        min-width: 40px;
+    }
+
+    .class-item .class-actions {
+        display: flex;
+        gap: 4px;
+    }
+
+    .add-class-form {
+        display: flex;
+        gap: 8px;
+    }
+
+    .add-class-form input[name="class_name"] {
+        flex: 1;
+    }
+
+    .subject-permissions {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 20px;
+    }
+
+    .subject-permissions h2 {
+        font-size: 1.1rem;
+        margin: 0 0 8px 0;
+    }
+
+    .permissions-table-wrapper {
+        overflow-x: auto;
+        margin: 16px 0;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+    }
+
+    .permissions-matrix {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.88rem;
+    }
+
+    .permissions-matrix th,
+    .permissions-matrix td {
+        padding: 10px 12px;
+        text-align: center;
+        border-bottom: 1px solid var(--line);
+    }
+
+    .permissions-matrix th {
+        background: var(--surface-alt);
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .permissions-matrix .sticky-col {
+        position: sticky;
+        left: 0;
+        background: var(--surface);
+        z-index: 1;
+        text-align: left;
+        min-width: 120px;
+        border-right: 1px solid var(--line);
+    }
+
+    .permissions-matrix th.sticky-col {
+        background: var(--surface-alt);
+        z-index: 2;
+    }
+
+    .board-name-cell {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .board-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+
+    .grade-header.has-classes {
+        color: var(--primary);
+    }
+
+    .shared-hint {
+        display: block;
+        font-size: 0.7rem;
+        font-weight: normal;
+        color: var(--muted);
+    }
+
+    .batch-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    flex-wrap: wrap;
+}
+
+.add-subject-action {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+}
+
+    .batch-label {
+        font-size: 0.82rem;
+        color: var(--muted);
+        margin-right: 4px;
+    }
+
+    .board-actions {
+        display: flex;
+        gap: 4px;
+        margin-left: 8px;
+    }
+
+    .board-name-cell {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .board-name {
+        flex: 1;
+    }
+
+    .warning-text {
+        color: var(--danger);
+        font-size: 0.88rem;
+        margin: 8px 0;
+    }
+
+    .helper-text {
+        font-size: 0.75rem;
+        color: var(--muted);
+        margin-top: 4px;
+    }
+
+    .btn-xs {
+        padding: 2px 6px;
+        font-size: 0.75rem;
+    }
+
+    .btn-danger-ghost {
+        color: var(--danger);
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        padding: 2px 6px;
+        font-size: 0.75rem;
+    }
+
+    .btn-danger-ghost:hover {
+        background: rgba(220, 38, 38, 0.1);
+        border-radius: 4px;
+    }
+
+    .permission-cell {
+        position: relative;
+    }
+
+    .permission-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        cursor: pointer;
+    }
+
+    .permission-toggle input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+    }
+
+    .shared-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 4px;
+        color: var(--muted);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .shared-toggle:hover {
+        background: var(--surface-hover);
+    }
+
+    .shared-toggle.active {
+        color: var(--success);
+        background: rgba(22, 163, 74, 0.1);
+    }
+
+    .shared-toggle.enabled {
+        color: var(--text);
+    }
+
+    .permissions-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 16px;
+    }
+
+    .save-status {
+        font-size: 0.88rem;
+        color: var(--success);
+    }
+
+    .empty-state {
+        padding: 24px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.88rem;
+    }
+
+    .loading-state {
+        padding: 24px;
+        text-align: center;
+        color: var(--muted);
+    }
+
+    .helper-text {
+        font-size: 0.82rem;
+        color: var(--muted);
+        margin: 0;
+    }
+
+    .btn-sm {
+        padding: 4px 8px;
+        font-size: 0.8rem;
+    }
+    </style>
+
+    <%- include('../partials/footer') %>
+</body>
+</html>

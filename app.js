@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
+const cookieParser = require('cookie-parser');
 const SQLiteStore = require('connect-sqlite3')(session);
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
@@ -12,133 +13,51 @@ const marked = require('marked');
 const { JSDOM } = require('jsdom');
 const DOMPurify = require('dompurify')(new JSDOM('').window);
 const { WebSocketServer } = require('ws');
-
 const { moderateChatMessage, moderatePost, moderateResource, moderateContent } = require('./server/services/moderation');
 const { Resend } = require('resend');
-
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 marked.setOptions({
   gfm: true,
   breaks: true
 });
 
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+const {
+  createDatabaseHelpers,
+  initializeDatabase: initDatabaseFromModule,
+  boardSeeds,
+  sectionTitles,
+  sectionTitlesEn
+} = require('./server/database');
+
+const {
+  slugify,
+  stripHtml,
+  excerpt,
+  extractFirstImageUrl,
+  buildCountdown,
+  renderMarkdown,
+  formatDate
+} = require('./server/utils');
+
+const {
+  requireAuth,
+  requireStaff,
+  requireLevel,
+  isStaff,
+  getUserLevel,
+  wantsJson: wantsJsonMiddleware,
+  respondError
+} = require('./server/middleware/auth');
+
+const { createCreditService } = require('./server/services/credit');
+
 function ensureDirectory(targetPath) {
   fs.mkdirSync(targetPath, { recursive: true });
 }
 
-function slugify(value) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-function stripHtml(value) {
-  return String(value || '').replace(/<[^>]+>/g, '');
-}
-
-function excerpt(value, length = 120) {
-  const plain = stripHtml(value).replace(/\s+/g, ' ').trim();
-  return plain.length <= length ? plain : `${plain.slice(0, length)}…`;
-}
-
-function extractFirstImageUrl(value) {
-  const match = String(value || '').match(/!\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)|<img[^>]+src=["']([^"']+)["']/i);
-  return match ? (match[1] || match[2] || '') : '';
-}
-
-function buildCountdown(dateValue) {
-  if (!dateValue) {
-    return '待定';
-  }
-
-  const target = new Date(dateValue);
-  const diff = target.getTime() - Date.now();
-  const days = Math.ceil(diff / (24 * 60 * 60 * 1000));
-
-  if (days > 1) {
-    return `还剩 ${days} 天`;
-  }
-
-  if (days === 1) {
-    return '明天';
-  }
-
-  if (days === 0) {
-    return '今天';
-  }
-
-  return `已过 ${Math.abs(days)} 天`;
-}
-
-function renderMarkdown(content) {
-  if (!content) {
-    return '';
-  }
-
-  return DOMPurify.sanitize(marked.parse(String(content).trim()));
-}
-
-function formatDate(dateValue, includeTime = false) {
-  if (!dateValue) {
-    return '—';
-  }
-
-  const date = new Date(dateValue);
-
-  if (Number.isNaN(date.getTime())) {
-    return '—';
-  }
-
-  return includeTime
-    ? date.toLocaleString('zh-CN', { hour12: false })
-    : date.toLocaleDateString('zh-CN');
-}
-
-function createDatabaseHelpers(db) {
-  return {
-    run(sql, params = []) {
-      return new Promise((resolve, reject) => {
-        db.run(sql, params, function onRun(error) {
-          if (error) {
-            reject(error);
-            return;
-          }
-
-          resolve({
-            lastID: this.lastID,
-            changes: this.changes
-          });
-        });
-      });
-    },
-    get(sql, params = []) {
-      return new Promise((resolve, reject) => {
-        db.get(sql, params, (error, row) => {
-          if (error) {
-            reject(error);
-            return;
-          }
-
-          resolve(row || null);
-        });
-      });
-    },
-    all(sql, params = []) {
-      return new Promise((resolve, reject) => {
-        db.all(sql, params, (error, rows) => {
-          if (error) {
-            reject(error);
-            return;
-          }
-
-          resolve(rows || []);
-        });
-      });
-    }
-  };
-}
+function ensureColumn() {}
 
 function createApp(options = {}) {
   const rootDir = options.rootDir || __dirname;
@@ -168,7 +87,7 @@ function createApp(options = {}) {
       }
     }),
     limits: {
-      fileSize: 10 * 1024 * 1024
+      fileSize: 100 * 1024 * 1024
     }
   });
 
@@ -187,7 +106,7 @@ function createApp(options = {}) {
     );
 
     try {
-      await resend.emails.send({
+      const result = await resend.emails.send({
         from: process.env.EMAIL_FROM || 'onboarding@resend.dev',
         to: userEmail,
         subject: 'BG Hub 注册验证码',
@@ -203,549 +122,13 @@ function createApp(options = {}) {
           </div>
         `
       });
-      console.log(`[Email] Verification code sent to ${userEmail}`);
+      console.log(`[Email] Verification code sent to ${userEmail}, id: ${result.data?.id}`);
       return code;
     } catch (error) {
-      console.error('[Email] Failed to send verification email:', error.message);
+      console.error(`[Email] Failed to send verification email to ${userEmail}:`);
+      console.error(`[Email] Status: ${error.status || 'N/A'}, Message: ${error.message}`);
+      console.error(`[Email] Error name: ${error.name}, Code: ${error.code || 'N/A'}`);
       return null;
-    }
-  }
-
-  const boardSeeds = [
-    { slug: 'mathematics', name: '数学', name_en: 'Mathematics', description: 'AP 微积分、代数、统计与数学笔记', color: '#5b7cfa' },
-    { slug: 'english', name: '英语', name_en: 'English', description: '文学阅读、写作任务与课堂资料', color: '#f97316' },
-    { slug: 'physics', name: '物理', name_en: 'Physics', description: '实验、习题与考试提醒', color: '#06b6d4' },
-    { slug: 'chemistry', name: '化学', name_en: 'Chemistry', description: '公式、实验安全与课堂安排', color: '#10b981' },
-    { slug: 'biology', name: '生物', name_en: 'Biology', description: '章节重点、实验作业与资料整理', color: '#84cc16' },
-    { slug: 'history', name: '历史', name_en: 'History', description: '阅读任务、讨论题与考试节点', color: '#a855f7' },
-    { slug: 'economics', name: '经济', name_en: 'Economics', description: '案例分析、作业与课堂公告', color: '#ec4899' },
-    { slug: 'computer-science', name: '计算机', name_en: 'Computer Science', description: '编程任务、实验要求与资源分享', color: '#0f172a' },
-    { slug: 'other', name: '其他', name_en: 'Other', description: '跨学科内容与通用学习资源', color: '#64748b' }
-  ];
-
-  const sectionTitles = {
-    IC: '课程内容',
-    HW: '课程作业',
-    A: '公告'
-  };
-
-  const sectionTitlesEn = {
-    IC: 'Course Content',
-    HW: 'Homework',
-    A: 'Announcement'
-  };
-
-  async function ensureColumn(tableName, columnName, definition) {
-    const columns = await query.all(`PRAGMA table_info(${tableName})`);
-    const exists = columns.some((column) => column.name === columnName);
-    if (!exists) {
-      await query.run(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
-    }
-  }
-
-  async function initializeDatabase() {
-    await query.run('PRAGMA foreign_keys = ON');
-
-    await query.run(`CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT NOT NULL UNIQUE,
-      name TEXT NOT NULL,
-      grade TEXT NOT NULL,
-      password_hash TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'student',
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-    await ensureColumn('users', 'role_level', 'INTEGER NOT NULL DEFAULT 0');
-    await ensureColumn('users', 'banned_until', 'DATETIME');
-    await ensureColumn('users', 'muted_until', 'DATETIME');
-
-    await query.run(`CREATE TABLE IF NOT EXISTS roles (
-      level INTEGER PRIMARY KEY,
-      min_credit INTEGER NOT NULL,
-      name TEXT NOT NULL,
-      badge_color TEXT NOT NULL,
-      is_admin INTEGER NOT NULL DEFAULT 0
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS user_credit (
-      user_id INTEGER PRIMARY KEY,
-      credit INTEGER NOT NULL DEFAULT 0,
-      last_login_date TEXT,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS credit_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      delta INTEGER NOT NULL,
-      reason TEXT NOT NULL,
-      reviewer_id INTEGER,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY(reviewer_id) REFERENCES users(id) ON DELETE SET NULL
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS notifications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      title TEXT NOT NULL,
-      content TEXT NOT NULL,
-      notification_type TEXT NOT NULL DEFAULT 'system',
-      is_read INTEGER NOT NULL DEFAULT 0,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS email_outbox (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      to_email TEXT NOT NULL,
-      subject TEXT NOT NULL,
-      content TEXT NOT NULL,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS verification_codes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT NOT NULL,
-      code TEXT NOT NULL,
-      expires_at DATETIME NOT NULL,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS review_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      item_type TEXT NOT NULL,
-      item_id INTEGER NOT NULL,
-      payload TEXT NOT NULL DEFAULT '',
-      status TEXT NOT NULL DEFAULT 'pending',
-      created_by INTEGER NOT NULL,
-      reviewer_id INTEGER,
-      decision_reason TEXT NOT NULL DEFAULT '',
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY(reviewer_id) REFERENCES users(id) ON DELETE SET NULL
-    )`);
-
-    await ensureColumn('review_items', 'payload', "TEXT NOT NULL DEFAULT ''");
-
-    await query.run(`CREATE TABLE IF NOT EXISTS review_actions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      review_id INTEGER NOT NULL,
-      reviewer_id INTEGER NOT NULL,
-      action TEXT NOT NULL,
-      reason TEXT NOT NULL,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(review_id) REFERENCES review_items(id) ON DELETE CASCADE,
-      FOREIGN KEY(reviewer_id) REFERENCES users(id) ON DELETE CASCADE
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS rate_limit_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      ip TEXT NOT NULL,
-      route TEXT NOT NULL,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS supercode_lockouts (
-      email TEXT PRIMARY KEY,
-      failed_count INTEGER NOT NULL DEFAULT 0,
-      locked_until DATETIME
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS conversations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS conversation_participants (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      conversation_id INTEGER NOT NULL,
-      user_id INTEGER NOT NULL,
-      last_read_at DATETIME,
-      UNIQUE(conversation_id, user_id),
-      FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
-      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS private_messages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      conversation_id INTEGER NOT NULL,
-      sender_id INTEGER NOT NULL,
-      content TEXT NOT NULL,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
-      FOREIGN KEY(sender_id) REFERENCES users(id) ON DELETE CASCADE
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS post_reactions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      post_id INTEGER NOT NULL,
-      user_id INTEGER NOT NULL,
-      reaction_type TEXT NOT NULL CHECK(reaction_type IN ('like', 'dislike')),
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(post_id, user_id),
-      FOREIGN KEY(post_id) REFERENCES posts(id) ON DELETE CASCADE,
-      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS favorites (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      item_type TEXT NOT NULL CHECK(item_type IN ('post', 'resource', 'homework')),
-      item_id INTEGER NOT NULL,
-      note TEXT NOT NULL DEFAULT '',
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(user_id, item_type, item_id),
-      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-    )`);
-
-    await query.run(`CREATE INDEX IF NOT EXISTS idx_post_reactions_post ON post_reactions(post_id)`);
-    await query.run(`CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id)`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS schedules (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      semester TEXT NOT NULL DEFAULT '2026-Spring',
-      grade TEXT NOT NULL,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(semester, grade)
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS schedule_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      schedule_id INTEGER NOT NULL,
-      day_of_week INTEGER NOT NULL CHECK(day_of_week BETWEEN 0 AND 6),
-      period INTEGER NOT NULL CHECK(period BETWEEN 1 AND 8),
-      subject TEXT NOT NULL,
-      teacher TEXT NOT NULL DEFAULT '',
-      room TEXT NOT NULL DEFAULT '',
-      start_time TEXT NOT NULL,
-      end_time TEXT NOT NULL,
-      FOREIGN KEY(schedule_id) REFERENCES schedules(id) ON DELETE CASCADE
-    )`);
-
-    await query.run(`CREATE INDEX IF NOT EXISTS idx_schedule_items_schedule ON schedule_items(schedule_id)`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS search_history (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      term TEXT NOT NULL,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS trending_searches (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      term TEXT NOT NULL UNIQUE,
-      search_count INTEGER NOT NULL DEFAULT 0,
-      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-    await query.run(`CREATE INDEX IF NOT EXISTS idx_private_messages_conversation ON private_messages(conversation_id)`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS admin_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      admin_user_id INTEGER NOT NULL,
-      action TEXT NOT NULL,
-      target_user_id INTEGER,
-      ip TEXT NOT NULL,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(admin_user_id) REFERENCES users(id) ON DELETE CASCADE
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS ip_bans (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      ip_address TEXT NOT NULL UNIQUE,
-      reason TEXT NOT NULL DEFAULT '',
-      fail_count INTEGER NOT NULL DEFAULT 0,
-      banned_at DATETIME NOT NULL,
-      expires_at DATETIME,
-      created_by INTEGER,
-      FOREIGN KEY(created_by) REFERENCES users(id)
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS user_bans (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      reason TEXT NOT NULL DEFAULT '',
-      ban_count INTEGER NOT NULL DEFAULT 0,
-      banned_at DATETIME NOT NULL,
-      expires_at DATETIME,
-      created_by INTEGER,
-      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY(created_by) REFERENCES users(id)
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS reports (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      reporter_id INTEGER NOT NULL,
-      target_type TEXT NOT NULL,
-      target_id INTEGER NOT NULL,
-      reason TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending',
-      reviewer_id INTEGER,
-      review_result TEXT,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      reviewed_at DATETIME,
-      FOREIGN KEY(reporter_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY(reviewer_id) REFERENCES users(id)
-    )`);
-
-    await ensureColumn('reports', 'review_result', 'TEXT');
-
-    await query.run(`CREATE TABLE IF NOT EXISTS review_appeals (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      content_type TEXT NOT NULL,
-      content_id INTEGER NOT NULL,
-      appeal_reason TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending',
-      reviewer_id INTEGER,
-      review_note TEXT,
-      credit_restored INTEGER DEFAULT 0,
-      credit_compensation INTEGER DEFAULT 0,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      reviewed_at DATETIME,
-      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY(reviewer_id) REFERENCES users(id)
-    )`);
-
-    await ensureColumn('review_appeals', 'credit_restored', 'INTEGER DEFAULT 0');
-    await ensureColumn('review_appeals', 'credit_compensation', 'INTEGER DEFAULT 0');
-
-    await query.run(`CREATE TABLE IF NOT EXISTS daily_stats (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      stat_date TEXT NOT NULL,
-      posts_count INTEGER NOT NULL DEFAULT 0,
-      chat_count INTEGER NOT NULL DEFAULT 0,
-      cj_count INTEGER NOT NULL DEFAULT 0,
-      resource_count INTEGER NOT NULL DEFAULT 0,
-      login_credit_received INTEGER NOT NULL DEFAULT 0,
-      credit_capped INTEGER NOT NULL DEFAULT 0,
-      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
-      UNIQUE(user_id, stat_date)
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS credit_caps (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      excess_credit INTEGER NOT NULL DEFAULT 0,
-      released_at DATETIME,
-      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS boards (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      slug TEXT NOT NULL UNIQUE,
-      name TEXT NOT NULL,
-      name_en TEXT NOT NULL DEFAULT '',
-      description TEXT NOT NULL,
-      color TEXT NOT NULL DEFAULT '#4f46e5',
-      sort_order INTEGER NOT NULL DEFAULT 0,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS board_sections (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      board_id INTEGER NOT NULL,
-      section TEXT NOT NULL,
-      section_date TEXT NOT NULL DEFAULT (date('now')),
-      title TEXT NOT NULL,
-      title_en TEXT NOT NULL DEFAULT '',
-      content TEXT NOT NULL DEFAULT '',
-      updated_by INTEGER,
-      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(board_id, section, section_date),
-      FOREIGN KEY(board_id) REFERENCES boards(id) ON DELETE CASCADE,
-      FOREIGN KEY(updated_by) REFERENCES users(id) ON DELETE SET NULL
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS exams (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      board_id INTEGER NOT NULL,
-      title TEXT NOT NULL,
-      exam_type TEXT NOT NULL,
-      grade TEXT NOT NULL,
-      exam_date DATETIME NOT NULL,
-      description TEXT NOT NULL DEFAULT '',
-      teacher TEXT NOT NULL DEFAULT '',
-      is_priority INTEGER NOT NULL DEFAULT 0,
-      created_by INTEGER,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(board_id) REFERENCES boards(id) ON DELETE CASCADE,
-      FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE SET NULL
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS homeworks (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      board_id INTEGER NOT NULL,
-      title TEXT NOT NULL,
-      content TEXT NOT NULL,
-      teacher TEXT NOT NULL DEFAULT '',
-      deadline DATETIME NOT NULL,
-      attachment_url TEXT NOT NULL DEFAULT '',
-      created_by INTEGER,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(board_id) REFERENCES boards(id) ON DELETE CASCADE,
-      FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE SET NULL
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS homework_statuses (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      homework_id INTEGER NOT NULL,
-      user_id INTEGER NOT NULL,
-      is_completed INTEGER NOT NULL DEFAULT 1,
-      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(homework_id, user_id),
-      FOREIGN KEY(homework_id) REFERENCES homeworks(id) ON DELETE CASCADE,
-      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS resources (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      board_id INTEGER NOT NULL,
-      title TEXT NOT NULL,
-      description TEXT NOT NULL DEFAULT '',
-      teacher TEXT NOT NULL DEFAULT '',
-      file_name TEXT NOT NULL DEFAULT '',
-      file_path TEXT NOT NULL DEFAULT '',
-      external_url TEXT NOT NULL DEFAULT '',
-      status TEXT NOT NULL DEFAULT 'approved',
-      download_count INTEGER NOT NULL DEFAULT 0,
-      like_count INTEGER NOT NULL DEFAULT 0,
-      uploaded_by INTEGER,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(board_id) REFERENCES boards(id) ON DELETE CASCADE,
-      FOREIGN KEY(uploaded_by) REFERENCES users(id) ON DELETE SET NULL
-    )`);
-
-    await query.run(`CREATE TABLE IF NOT EXISTS posts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      board_id INTEGER NOT NULL,
-      title TEXT NOT NULL,
-      content TEXT NOT NULL,
-      post_type TEXT NOT NULL DEFAULT 'question',
-      is_anonymous INTEGER NOT NULL DEFAULT 0,
-      is_resolved INTEGER NOT NULL DEFAULT 0,
-      status TEXT NOT NULL DEFAULT 'open',
-      review_status TEXT NOT NULL DEFAULT 'approved',
-      view_count INTEGER NOT NULL DEFAULT 0,
-      user_id INTEGER NOT NULL,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(board_id) REFERENCES boards(id) ON DELETE CASCADE,
-      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-    )`);
-
-    await ensureColumn('posts', 'review_status', "TEXT NOT NULL DEFAULT 'approved'");
-    await ensureColumn('posts', 'like_count', 'INTEGER NOT NULL DEFAULT 0');
-    await ensureColumn('posts', 'dislike_count', 'INTEGER NOT NULL DEFAULT 0');
-
-    await query.run(`CREATE TABLE IF NOT EXISTS comments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      post_id INTEGER NOT NULL,
-      content TEXT NOT NULL,
-      user_id INTEGER NOT NULL,
-      is_best INTEGER NOT NULL DEFAULT 0,
-      like_count INTEGER NOT NULL DEFAULT 0,
-      status TEXT NOT NULL DEFAULT 'approved',
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(post_id) REFERENCES posts(id) ON DELETE CASCADE,
-      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-    )`);
-
-    await ensureColumn('comments', 'status', "TEXT NOT NULL DEFAULT 'approved'");
-
-    await query.run(`CREATE TABLE IF NOT EXISTS chat_messages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      content TEXT NOT NULL,
-      user_id INTEGER NOT NULL,
-      status TEXT NOT NULL DEFAULT 'approved',
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-    )`);
-
-    await ensureColumn('chat_messages', 'status', "TEXT NOT NULL DEFAULT 'approved'");
-    await ensureColumn('chat_messages', 'is_pending', 'INTEGER NOT NULL DEFAULT 0');
-    await ensureColumn('chat_messages', 'is_rejected', 'INTEGER NOT NULL DEFAULT 0');
-    await ensureColumn('chat_messages', 'reviewed_at', 'DATETIME');
-
-    await ensureColumn('user_credit', 'chat_cooldown_until', 'DATETIME');
-    await ensureColumn('user_credit', 'consecutive_rejects', 'INTEGER NOT NULL DEFAULT 0');
-    await ensureColumn('user_credit', 'violation_count', 'INTEGER NOT NULL DEFAULT 0');
-    await ensureColumn('user_credit', 'last_violation_at', 'DATETIME');
-
-    const sectionColumns = await query.all('PRAGMA table_info(board_sections)');
-    const hasDateCol = sectionColumns.some(c => c.name === 'section_date');
-    if (!hasDateCol) {
-      await query.run(`ALTER TABLE board_sections ADD COLUMN section_date TEXT`);
-    }
-
-    await ensureColumn('roles', 'daily_post_limit', 'INTEGER NOT NULL DEFAULT 10');
-    await ensureColumn('roles', 'chat_audit', "TEXT NOT NULL DEFAULT 'full'");
-    await ensureColumn('roles', 'review_target_min', 'INTEGER NOT NULL DEFAULT -1');
-    await ensureColumn('roles', 'review_target_max', 'INTEGER NOT NULL DEFAULT -1');
-    await ensureColumn('roles', 'login_credit', 'INTEGER NOT NULL DEFAULT 0');
-    await ensureColumn('roles', 'max_credit', 'INTEGER NOT NULL DEFAULT -1');
-    await ensureColumn('boards', 'name_en', "TEXT NOT NULL DEFAULT ''");
-    await ensureColumn('board_sections', 'title_en', "TEXT NOT NULL DEFAULT ''");
-
-    const defaultRoles = [
-      { level: 0,  min_credit: 0,    max_credit: 0,     name: 'LV0',  badge_color: '#94a3b8', is_admin: 0, daily_post_limit: 5,   chat_audit: 'full',  review_target_min: -1, review_target_max: -1, login_credit: 0 },
-      { level: 1,  min_credit: 1,    max_credit: 10,    name: 'LV1',  badge_color: '#64748b', is_admin: 0, daily_post_limit: 20,  chat_audit: 'ai',    review_target_min: -1, review_target_max: -1, login_credit: 1 },
-      { level: 2,  min_credit: 11,   max_credit: 40,    name: 'LV2',  badge_color: '#3255a4', is_admin: 0, daily_post_limit: 40,  chat_audit: 'ai',    review_target_min: -1, review_target_max: -1, login_credit: 2 },
-      { level: 3,  min_credit: 41,   max_credit: 100,   name: 'LV3',  badge_color: '#0ea5e9', is_admin: 0, daily_post_limit: 60,  chat_audit: 'none',  review_target_min: 0, review_target_max: 2, login_credit: 3 },
-      { level: 4,  min_credit: 101,  max_credit: 250,   name: 'LV4',  badge_color: '#16a34a', is_admin: 0, daily_post_limit: 80,  chat_audit: 'none',  review_target_min: 0, review_target_max: 3, login_credit: 4 },
-      { level: 5,  min_credit: 251, max_credit: 500,   name: 'LV5',  badge_color: '#f59e0b', is_admin: 0, daily_post_limit: 100, chat_audit: 'none',  review_target_min: 0, review_target_max: 5, login_credit: 4 },
-      { level: 55, min_credit: -1,   max_credit: -1,    name: 'LV5.5', badge_color: '#8b5cf6', is_admin: 0, daily_post_limit: 999, chat_audit: 'none',  review_target_min: 0, review_target_max: 5, login_credit: 0 },
-      { level: 6,  min_credit: 2000, max_credit: -1,    name: 'LV6',  badge_color: '#dc2626', is_admin: 1, daily_post_limit: 999, chat_audit: 'none',  review_target_min: 0, review_target_max: 55, login_credit: 0 }
-    ];
-
-    for (const role of defaultRoles) {
-      await query.run(
-        `INSERT OR REPLACE INTO roles (level, min_credit, max_credit, name, badge_color, is_admin, daily_post_limit, chat_audit, review_target_min, review_target_max, login_credit)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [role.level, role.min_credit, role.max_credit, role.name, role.badge_color, role.is_admin, role.daily_post_limit, role.chat_audit, role.review_target_min, role.review_target_max, role.login_credit]
-      );
-    }
-
-    for (let index = 0; index < boardSeeds.length; index += 1) {
-      const board = boardSeeds[index];
-      await query.run(
-        `INSERT OR IGNORE INTO boards (slug, name, name_en, description, color, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [board.slug, board.name, board.name_en, board.description, board.color, index + 1]
-      );
-
-      const savedBoard = await query.get('SELECT id FROM boards WHERE slug = ?', [board.slug]);
-
-      for (const section of Object.keys(sectionTitles)) {
-        await query.run(
-          `INSERT OR IGNORE INTO board_sections (board_id, section, title, title_en, content)
-           VALUES (?, ?, ?, ?, ?)`,
-          [savedBoard.id, section, sectionTitles[section], sectionTitlesEn[section], '']
-        );
-      }
-    }
-
-    const existingAdmin = await query.get("SELECT id FROM users WHERE name = 'Admin'");
-    if (!existingAdmin) {
-      const adminPasswordHash = await bcrypt.hash('!Vnk3cU1a$~P', 10);
-      await query.run(
-        `INSERT INTO users (email, name, grade, password_hash, role, role_level) VALUES (?, ?, ?, ?, ?, ?)`,
-        ['admin@basischina.com', 'Admin', 'G12', adminPasswordHash, 'admin', 6]
-      );
-      const adminRow = await query.get("SELECT id FROM users WHERE name = 'Admin'");
-      if (adminRow) {
-        await ensureCreditRecord(adminRow.id);
-        await query.run('UPDATE user_credit SET credit = 1000 WHERE user_id = ?', [adminRow.id]);
-      }
     }
   }
 
@@ -762,15 +145,21 @@ function createApp(options = {}) {
   }
 
   function canManagePost(user, post) {
-    return Boolean(user && (user.id === post.user_id || isStaff(user)));
+    if (!user || !post) return false;
+    if (user.id === post.user_id) return true;
+    if (user.role_level === 6) return true;
+    return false;
   }
 
   function canMarkBestAnswer(user, post) {
-    return Boolean(user && (user.id === post.user_id || isStaff(user)));
+    if (!user || !post) return false;
+    if (user.id === post.user_id) return true;
+    if (user.role_level === 6) return true;
+    return false;
   }
 
   function validateEmail(email) {
-    return /@(basischina\.com|gmail\.com)$/i.test(String(email || '').trim());
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
   }
 
   function clampCredit(value) {
@@ -847,6 +236,45 @@ function createApp(options = {}) {
     return nextLevel;
   }
 
+  async function banLv1BottomOut(userId) {
+    const now = new Date();
+    const existingBan = await query.get('SELECT * FROM user_bans WHERE user_id = ?', [userId]);
+
+    const banDurations = [5, 15, 45, 180, 720];
+    let banCount = 1;
+    let durationMinutes = banDurations[0];
+
+    if (existingBan) {
+      const bannedAt = parseDateValue(existingBan.banned_at);
+      const hoursSinceBan = (now - bannedAt) / (1000 * 60 * 60);
+
+      if (hoursSinceBan > 24) {
+        banCount = 1;
+      } else {
+        banCount = Math.min((existingBan.ban_count || 0) + 1, banDurations.length);
+      }
+    }
+
+    durationMinutes = banDurations[banCount - 1] || banDurations[banDurations.length - 1];
+    const expiresAt = new Date(now.getTime() + durationMinutes * 60 * 1000);
+
+    if (existingBan) {
+      await query.run(
+        'UPDATE user_bans SET ban_count = ?, banned_at = ?, expires_at = ?, reason = ? WHERE user_id = ?',
+        [banCount, now.toISOString(), expiresAt.toISOString(), 'LV1用户积分触底禁言', userId]
+      );
+    } else {
+      await query.run(
+        'INSERT INTO user_bans (user_id, reason, ban_count, banned_at, expires_at) VALUES (?, ?, ?, ?, ?)',
+        [userId, 'LV1用户积分触底禁言', banCount, now.toISOString(), expiresAt.toISOString()]
+      );
+    }
+
+    await query.run('UPDATE users SET banned_until = ? WHERE id = ?', [expiresAt.toISOString(), userId]);
+
+    return { success: true, banCount, durationMinutes, expiresAt };
+  }
+
   async function changeCredit(userId, delta, reason, reviewerId = null) {
     const user = await query.get('SELECT role_level FROM users WHERE id = ?', [userId]);
     if (user && (user.role_level === 55 || user.role_level === 6)) {
@@ -865,6 +293,11 @@ function createApp(options = {}) {
 
     if (creditRow.credit + actualDelta < 0) {
       actualDelta = -creditRow.credit;
+    }
+
+    if (user && user.role_level === 1 && actualDelta < 0 && creditRow.credit === 1) {
+      await banLv1BottomOut(userId);
+      return { credit: 1, delta: 0, banned: true, banReason: 'LV1用户积分触底禁言' };
     }
 
     const nextCredit = creditRow.credit + actualDelta;
@@ -894,12 +327,14 @@ function createApp(options = {}) {
     resource: -5
   };
 
-  async function auditContent(content, type) {
-    if (!content || typeof content !== 'string') {
+  async function auditContent(title, body, type) {
+    console.log('[auditContent] 被调用, type:', type, 'title:', String(title).substring(0, 50));
+
+    if (!title || typeof title !== 'string') {
       return { passed: false, reason: '内容为空' };
     }
 
-    if (hasSensitiveContent(content)) {
+    if (hasSensitiveContent(title) || (body && hasSensitiveContent(body))) {
       return { passed: false, reason: '包含敏感词' };
     }
 
@@ -907,45 +342,46 @@ function createApp(options = {}) {
       let modResult;
       switch (type) {
         case 'chat':
-          modResult = await moderateChatMessage(content);
+          modResult = await moderateChatMessage(title);
           break;
         case 'cj':
-          modResult = await moderateContent(content, '这是CJ板块的课程内容');
+          modResult = await moderateContent(title, '这是CJ板块的课程内容');
           break;
         case 'post':
+          modResult = await moderatePost(title, body || '');
+          break;
         case 'resource':
-          modResult = await moderatePost(content, '');
+          modResult = await moderateResource(title, body || '');
           break;
         default:
           modResult = { decision: 'PASS', reason: '未知类型，默认通过' };
       }
 
+      console.log('[auditContent] 审核结果:', modResult);
       return {
         passed: modResult.decision === 'PASS',
         reason: modResult.reason || ''
       };
     } catch (error) {
       console.error('[auditContent] AI审核异常:', error);
-      return { passed: true, reason: 'AI审核异常，默认通过' };
+      return { passed: false, reason: 'AI审核异常，请稍后重试' };
     }
   }
 
   function needsAIAudit(userLevel, type) {
     const level = Number(userLevel || 0);
 
-    if (level >= 3) {
-      return false;
-    }
-
     switch (type) {
       case 'chat':
         return level <= 1;
       case 'cj':
-        return level <= 1;
+        return level >= 1 && level < 5;
       case 'post':
-        return level <= 2;
+        return level >= 2 && level <= 4;
       case 'resource':
         return level <= 2;
+      case 'homework':
+        return level >= 1 && level < 5.5;
       default:
         return false;
     }
@@ -1089,7 +525,9 @@ function createApp(options = {}) {
       post: 'posts_count',
       chat: 'chat_count',
       cj: 'cj_count',
-      resource: 'resource_count'
+      resource: 'resource_count',
+      report: 'reports_count',
+      appeal: 'appeals_count'
     };
 
     const field = fieldMap[type];
@@ -1103,6 +541,49 @@ function createApp(options = {}) {
        ON CONFLICT(user_id, stat_date) DO UPDATE SET ${field} = ${field} + 1`,
       [userId, today]
     );
+  }
+
+  async function getDailyReportAppealLimit(user, type) {
+    const userLevel = getUserLevel(user);
+
+    if (userLevel < 1) {
+      return { allowed: false, limit: 0, current: 0, reason: 'LV0用户不可使用此功能' };
+    }
+
+    if (userLevel === 6 || userLevel === 55) {
+      return { allowed: true, limit: -1, current: 0 };
+    }
+
+    let limit = 5;
+    if (type === 'appeal') {
+      if (userLevel === 1 || userLevel === 2) limit = 2;
+      else if (userLevel === 3) limit = 3;
+      else if (userLevel === 4) limit = 5;
+      else if (userLevel >= 5) limit = -1;
+    } else {
+      if (userLevel >= 3 && userLevel <= 4) limit = 10;
+      else if (userLevel >= 5) limit = 20;
+    }
+
+    const today = currentDateKey();
+
+    const stats = await query.get(
+      'SELECT * FROM daily_stats WHERE user_id = ? AND stat_date = ?',
+      [user.id, today]
+    );
+
+    const field = type === 'report' ? 'reports_count' : 'appeals_count';
+    const current = stats ? Number(stats[field]) || 0 : 0;
+
+    if (limit === -1) {
+      return { allowed: true, limit: -1, current };
+    }
+
+    return {
+      allowed: current < limit,
+      limit,
+      current
+    };
   }
 
   async function applyDailyLoginCredit(userId) {
@@ -1407,10 +888,10 @@ function createApp(options = {}) {
     return `${decipher.update(encrypted, 'hex', 'utf8')}${decipher.final('utf8')}`;
   }
 
-  async function createReviewItem(itemType, itemId, userId) {
+  async function createReviewItem(itemType, itemId, userId, aiReviewed = false) {
     const result = await query.run(
-      'INSERT INTO review_items (item_type, item_id, created_by) VALUES (?, ?, ?)',
-      [itemType, itemId, userId]
+      'INSERT INTO review_items (item_type, item_id, created_by, ai_reviewed) VALUES (?, ?, ?, ?)',
+      [itemType, itemId, userId, aiReviewed ? 1 : 0]
     );
     return result.lastID;
   }
@@ -1439,16 +920,18 @@ function createApp(options = {}) {
     return query.get('SELECT * FROM boards WHERE slug = ?', [slug]);
   }
 
-  async function getBoards(dateStr = null) {
+  async function getBoards(dateStr = null, gradeContext = null, showAllClasses = false) {
     let sections;
+    const sevenDaysAgo = new Date(Date.now() + 8 * 60 * 60 * 1000 - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     if (dateStr) {
       sections = await query.all(`
         SELECT board_sections.*, users.name AS updater_name
         FROM board_sections
         LEFT JOIN users ON users.id = board_sections.updated_by
         WHERE board_sections.section_date = ?
+        AND board_sections.section_date >= ?
         ORDER BY board_sections.board_id, board_sections.section
-      `, [dateStr]);
+      `, [dateStr, sevenDaysAgo]);
     } else {
       sections = await query.all(`
         SELECT board_sections.*, users.name AS updater_name
@@ -1459,7 +942,79 @@ function createApp(options = {}) {
       `);
     }
 
-    const boards = await query.all('SELECT * FROM boards ORDER BY sort_order, name');
+    let boards = await query.all('SELECT * FROM boards ORDER BY sort_order, name');
+
+    if (gradeContext && gradeContext.grade) {
+      const grade = gradeContext.grade;
+      const isG6G8 = ['G6', 'G7', 'G8'].includes(grade);
+      const userClass = gradeContext.class_name;
+
+      const permissions = await query.all(`
+        SELECT board_id, is_shared FROM subject_grade_permissions WHERE grade = ?
+      `, [grade]);
+
+      const permMap = new Map(permissions.map(p => [p.board_id, p.is_shared]));
+      boards = boards.filter(board => permMap.has(board.id));
+
+      if (isG6G8) {
+        const classes = await query.all(
+          'SELECT class_name FROM grade_classes WHERE grade = ? ORDER BY sort_order, class_name',
+          [grade]
+        );
+
+        const expandedBoards = [];
+        for (const board of boards) {
+          const isShared = permMap.get(board.id);
+          if (isShared) {
+            expandedBoards.push({
+              ...board,
+              display_name: board.name,
+              display_name_en: board.name_en,
+              is_shared: true,
+              class_name: null
+            });
+          } else {
+            if (showAllClasses) {
+              for (const cls of classes) {
+                expandedBoards.push({
+                  ...board,
+                  display_name: `${board.name}(${cls.class_name})`,
+                  display_name_en: `${board.name_en}(${cls.class_name})`,
+                  is_shared: false,
+                  class_name: cls.class_name
+                });
+              }
+            } else if (userClass) {
+              expandedBoards.push({
+                ...board,
+                display_name: `${board.name}(${userClass})`,
+                display_name_en: `${board.name_en}(${userClass})`,
+                is_shared: false,
+                class_name: userClass
+              });
+            }
+          }
+        }
+        boards = expandedBoards;
+      } else {
+        boards = boards.map(board => ({
+          ...board,
+          display_name: board.name,
+          display_name_en: board.name_en,
+          is_shared: true,
+          class_name: null
+        }));
+      }
+    } else {
+      boards = boards.map(board => ({
+        ...board,
+        display_name: board.name,
+        display_name_en: board.name_en,
+        is_shared: true,
+        class_name: null
+      }));
+    }
+
     const sectionMap = new Map();
 
     sections.forEach((section) => {
@@ -1476,8 +1031,8 @@ function createApp(options = {}) {
     }));
   }
 
-  async function getDashboardData(user, dateStr = null) {
-    const boards = await getBoards(dateStr);
+  async function getDashboardData(user, dateStr = null, gradeContext = null, showAllClasses = false) {
+    const boards = await getBoards(dateStr, gradeContext, showAllClasses);
     const statsRows = await Promise.all([
       query.get('SELECT COUNT(*) AS count FROM exams'),
       query.get('SELECT COUNT(*) AS count FROM homeworks'),
@@ -1529,9 +1084,10 @@ function createApp(options = {}) {
     `);
 
     const chatMessages = await query.all(`
-      SELECT chat_messages.*, users.name AS author_name
+      SELECT chat_messages.*, 
+             COALESCE(users.name, '游客' || COALESCE(chat_messages.guest_id, '')) AS author_name
       FROM chat_messages
-      JOIN users ON users.id = chat_messages.user_id
+      LEFT JOIN users ON users.id = chat_messages.user_id
       WHERE chat_messages.status IN ('approved', 'visible_pending') AND chat_messages.is_rejected = 0
       AND datetime(chat_messages.created_at) > datetime('now', '-24 hours')
       ORDER BY datetime(chat_messages.created_at) ASC
@@ -1619,11 +1175,21 @@ function createApp(options = {}) {
     return { post, comments };
   }
 
-  async function getBoardDetail(slug, user, dateStr = null) {
+  async function getBoardDetail(slug, user, dateStr = null, gradeContext = null) {
     const board = await getBoardBySlug(slug);
 
     if (!board) {
       return null;
+    }
+
+    if (gradeContext && gradeContext.grade) {
+      const perm = await query.get(
+        'SELECT id FROM subject_grade_permissions WHERE board_id = ? AND grade = ?',
+        [board.id, gradeContext.grade]
+      );
+      if (!perm) {
+        return null;
+      }
     }
 
     let sections;
@@ -1776,8 +1342,10 @@ function createApp(options = {}) {
       return;
     }
 
+    const referer = req.get('Referer');
+    const redirectUrl = referer && !referer.includes(req.originalUrl) ? referer : '/';
     setFlash(req, 'error', message);
-    res.redirect('back');
+    res.redirect(redirectUrl);
   }
 
   function requireAuth(req, res, next) {
@@ -1857,7 +1425,20 @@ function createApp(options = {}) {
   app.use(express.json());
   app.use(express.static(publicDir));
   app.use('/locales', express.static(path.join(__dirname, 'server', 'locales')));
-  app.use('/uploads', express.static(uploadDir));
+  app.get('/uploads/:filename', (req, res) => {
+    const filename = req.params.filename;
+    const filePath = path.join(uploadDir, filename);
+    const fs = require('fs');
+
+    if (!fs.existsSync(filePath)) {
+      res.status(404).send('File not found');
+      return;
+    }
+
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+    res.setHeader('Cache-Control', 'no-cache');
+    res.sendFile(filePath);
+  });
   app.use(session({
     store: new SQLiteStore({
       db: 'sessions.db',
@@ -1873,6 +1454,8 @@ function createApp(options = {}) {
       sameSite: 'lax'
     }
   }));
+
+  app.use(cookieParser());
 
   app.locals.renderMarkdown = renderMarkdown;
   app.locals.excerpt = excerpt;
@@ -1892,7 +1475,7 @@ function createApp(options = {}) {
 
       if (req.session.userId) {
         req.user = await query.get(`
-          SELECT users.id, users.email, users.name, users.grade, users.role, users.role_level, users.created_at,
+          SELECT users.id, users.email, users.name, users.grade, users.class_name, users.role, users.role_level, users.created_at,
                  COALESCE(user_credit.credit, 0) AS credit,
                  roles.name AS role_name,
                  roles.badge_color AS badge_color,
@@ -1904,10 +1487,31 @@ function createApp(options = {}) {
         `, [req.session.userId]);
       }
 
+      let gradeContext = null;
+      let userLocale = 'zh';
+      if (req.user) {
+        gradeContext = {
+          grade: req.user.grade,
+          class_name: req.user.class_name
+        };
+        if (req.user.locale) {
+          userLocale = req.user.locale;
+        }
+      } else {
+        const gradeCookie = req.cookies.grade_context;
+        if (gradeCookie) {
+          try {
+            gradeContext = JSON.parse(gradeCookie);
+          } catch (e) {}
+        }
+      }
+
+      req.gradeContext = gradeContext;
       res.locals.user = req.user;
       res.locals.flash = flash;
       res.locals.currentPath = req.path;
-      res.locals.locale = req.query.locale || 'zh';
+      res.locals.locale = userLocale;
+      res.locals.gradeContext = gradeContext;
       next();
     } catch (error) {
       next(error);
@@ -1916,13 +1520,100 @@ function createApp(options = {}) {
 
   app.use(checkUserBan);
 
+  const { registerRoutes } = require('./server/routes');
+
+  const creditService = {
+    clampCredit,
+    currentDateKey,
+    ensureCreditRecord,
+    syncUserLevel,
+    changeCredit,
+    applyDailyLoginCredit,
+    checkCreditCap,
+    applyContentCredit
+  };
+
+  const helpers = {
+    getUserLevel,
+    validateEmail,
+    canManagePost: (user, post) => Boolean(user && (user.id === post.user_id || isStaff(user))),
+    canMarkBestAnswer: (user, post) => Boolean(user && (user.id === post.user_id || isStaff(user))),
+    setFlash,
+    wantsJson,
+    respondError,
+    parseDateValue,
+    runTransaction,
+    autoUnbanOnLogin,
+    getSupercodeLock,
+    clearSupercodeLock,
+    bumpSupercodeFailure,
+    createReviewItem,
+    countDailyActions,
+    countDailyChatSubmissions,
+    getBoardById,
+    getBoardBySlug,
+    getBoards,
+    getDashboardData,
+    getForumPosts,
+    getPostDetail,
+    getBoardDetail,
+    searchAll,
+    getUserProfile,
+    getDailyStats,
+    checkDailyLimit,
+    incrementDailyCount,
+    getDailyReportAppealLimit,
+    checkCreditCap,
+    checkIpBan,
+    checkUserBan
+  };
+
+  registerRoutes(app, {
+    query,
+    getBoards,
+    getBoardById,
+    getBoardDetail,
+    getBoardBySlug,
+    creditService,
+    renderMarkdown,
+    formatDate,
+    buildCountdown,
+    excerpt,
+    ensureColumn,
+    requireAuth,
+    requireStaff,
+    requireLevel,
+    isStaff,
+    upload,
+    setFlash,
+    sendVerificationEmail,
+    respondError,
+    wantsJson,
+    sectionTitles,
+    sectionTitlesEn,
+    needsAIAudit,
+    auditContent,
+    applyContentCredit,
+    helpers,
+    getUserLevel
+  });
+
   app.get('/', async (req, res) => {
     const dateStr = req.query.date || null;
-    const dashboard = await getDashboardData(req.user, dateStr);
+    const showAllClasses = req.query.showAllClasses === 'true';
+    const dashboard = await getDashboardData(req.user, dateStr, req.gradeContext, showAllClasses);
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayStr = today.toISOString().split('T')[0];
+
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+
+    if (dateStr && dateStr < sevenDaysAgoStr) {
+      return res.redirect(`/?date=${sevenDaysAgoStr}`);
+    }
 
     let selectedDateObj = null;
     if (dateStr) {
@@ -1934,11 +1625,18 @@ function createApp(options = {}) {
 
     const diffDays = Math.round((today - selectedDateObj) / (1000 * 60 * 60 * 24));
 
-    let display = '今天';
-    if (diffDays === 1) display = '昨天';
-    else if (diffDays === 2) display = '前天';
-    else if (diffDays > 2) display = dateStr;
-    else if (diffDays < 0) display = dateStr;
+    function formatDisplayDate(dateObj, diffDays, locale) {
+      const m = dateObj.getMonth() + 1;
+      const d = dateObj.getDate();
+      const y = dateObj.getFullYear();
+      const formatted = `${m}/${d}/${y}`;
+      if (diffDays === 0) return locale === 'en' ? `Today ${formatted}` : `今天 ${formatted}`;
+      if (diffDays === 1) return locale === 'en' ? `Yesterday ${formatted}` : `昨天 ${formatted}`;
+      if (diffDays === 2) return locale === 'en' ? `2 days ago ${formatted}` : `前天 ${formatted}`;
+      return formatted;
+    }
+
+    let display = formatDisplayDate(selectedDateObj, diffDays, res.locals.locale);
 
     const prevDateObj = new Date(selectedDateObj);
     prevDateObj.setDate(prevDateObj.getDate() - 1);
@@ -1949,10 +1647,10 @@ function createApp(options = {}) {
     const nextDate = nextDateObj.toISOString().split('T')[0];
 
     const isToday = !dateStr;
-    const isFuture = selectedDateObj.getTime() >= today.getTime();
+    const isFuture = selectedDateObj.getTime() > today.getTime();
 
     res.render('home', {
-      pageTitle: '校园学习助手',
+      pageTitle: '主页',
       homeStats: dashboard.stats,
       dateNavData: {
         display,
@@ -2046,7 +1744,7 @@ function createApp(options = {}) {
     const email = String(req.body.email || '').trim().toLowerCase();
 
     if (!validateEmail(email)) {
-      res.status(400).json({ error: '请使用学校邮箱或 Gmail 邮箱注册' });
+      res.status(400).json({ error: '请输入有效的邮箱地址' });
       return;
     }
 
@@ -2077,7 +1775,7 @@ function createApp(options = {}) {
     const errors = [];
 
     if (!validateEmail(email)) {
-      errors.push('请使用学校邮箱或 Gmail 邮箱注册');
+      errors.push('请输入有效的邮箱地址');
     }
 
     if (name.length < 2) {
@@ -2226,7 +1924,7 @@ function createApp(options = {}) {
     });
 
     res.render('forum', {
-      pageTitle: '互助广场',
+      pageTitle: '文章',
       boards,
       posts,
       filters: {
@@ -2239,6 +1937,18 @@ function createApp(options = {}) {
   });
 
   app.get('/forum/new', requireAuth, async (req, res) => {
+    const userLevel = getUserLevel(req.user);
+    if (userLevel < 2) {
+      if (wantsJson(req)) {
+        res.status(403).json({ error: '您的等级不足以发布文章，请提升信用分后再试' });
+        return;
+      }
+      return res.status(403).render('error-permission-post', {
+        pageTitle: '权限不足',
+        statusCode: 403,
+        message: null
+      });
+    }
     const boards = await getBoards();
     res.render('forum-form', {
       pageTitle: '发布帖子',
@@ -2250,6 +1960,11 @@ function createApp(options = {}) {
   });
 
   app.get('/forum/:id/edit', requireAuth, async (req, res) => {
+    const userLevel = getUserLevel(req.user);
+    if (userLevel < 2) {
+      respondError(req, res, 403, '您的等级不足以编辑帖子，请提升信用分后再试');
+      return;
+    }
     const detail = await getPostDetail(req.params.id);
 
     if (!detail || !canManagePost(req.user, detail.post)) {
@@ -2268,6 +1983,16 @@ function createApp(options = {}) {
   });
 
   async function createOrUpdatePost(req, res, mode) {
+    const userLevel = getUserLevel(req.user);
+    if (mode === 'create' && userLevel < 2) {
+      if (wantsJson(req)) {
+        res.status(403).json({ errors: ['您的等级不足以发布文章，请提升信用分后再试'] });
+        return;
+      }
+      respondError(req, res, 403, '您的等级不足以发布文章，请提升信用分后再试');
+      return;
+    }
+
     const title = String(req.body.title || '').trim();
     const content = String(req.body.content || '').trim();
     const boardId = Number(req.body.board_id || 0);
@@ -2296,6 +2021,14 @@ function createApp(options = {}) {
     let existingPost = null;
 
     if (mode === 'edit') {
+      if (userLevel < 2) {
+        if (wantsJson(req)) {
+          res.status(403).json({ errors: ['您的等级不足以编辑帖子，请提升信用分后再试'] });
+          return;
+        }
+        respondError(req, res, 403, '您的等级不足以编辑帖子，请提升信用分后再试');
+        return;
+      }
       existingPost = await getPostDetail(req.params.id);
       if (!existingPost || !canManagePost(req.user, existingPost.post)) {
         respondError(req, res, 404, '帖子不存在或没有权限编辑');
@@ -2339,8 +2072,12 @@ function createApp(options = {}) {
       return;
     }
 
-    if (needsAIAudit(getUserLevel(req.user), 'post')) {
-      const auditResult = await auditContent(`${title}\n\n${content}`, 'post');
+    const needsAIAuditResult = needsAIAudit(userLevel, 'post');
+
+    if (needsAIAuditResult) {
+      console.log(`[Post] LV${userLevel} 用户发布文章，进入AI审核流程`);
+      const auditResult = await auditContent(title, content, 'post');
+      console.log(`[Post] AI审核结果:`, auditResult);
       if (!auditResult.passed) {
         if (wantsJson(req)) {
           res.status(403).json({ errors: [`内容违规：${auditResult.reason}`] });
@@ -2358,14 +2095,18 @@ function createApp(options = {}) {
       await applyContentCredit(req.user.id, 'post', true);
     }
 
-    const reviewStatus = getUserLevel(req.user) >= 2 ? 'approved' : 'pending';
+    const reviewStatus = userLevel >= 4 ? 'approved' : 'pending';
+    console.log(`[Post] 用户等级: LV${userLevel}, 审核状态: ${reviewStatus}, AI审核: ${needsAIAuditResult}`);
     const result = await query.run(`
       INSERT INTO posts (board_id, title, content, post_type, is_anonymous, user_id, review_status)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `, [boardId, title, content, postType, isAnonymous, req.user.id, reviewStatus]);
 
     if (reviewStatus !== 'approved') {
-      await createReviewItem('post', result.lastID, req.user.id);
+      console.log(`[Post] 帖子 ${result.lastID} 进入人工审核队列，ai_reviewed=${needsAIAuditResult}`);
+      await createReviewItem('post', result.lastID, req.user.id, needsAIAuditResult);
+    } else {
+      console.log(`[Post] 帖子 ${result.lastID} 直接发布`);
     }
 
     if (wantsJson(req)) {
@@ -2408,7 +2149,8 @@ function createApp(options = {}) {
         ...detail.post,
         view_count: detail.post.view_count + 1
       },
-      comments: detail.comments
+      comments: detail.comments,
+      isStaff: isStaff(req.user)
     });
   });
 
@@ -2443,7 +2185,7 @@ function createApp(options = {}) {
     }
 
     setFlash(req, 'success', '回复已发布');
-    res.redirect(`/forum/${req.params.id}`);
+    res.redirect(`/forum/${req.params.id}#reply-section`);
   });
 
   app.post('/forum/:postId/comments/:commentId/best', requireAuth, async (req, res) => {
@@ -2491,7 +2233,7 @@ function createApp(options = {}) {
 
   app.get('/boards/:slug', async (req, res) => {
     const dateStr = req.query.date || null;
-    const detail = await getBoardDetail(req.params.slug, req.user, dateStr);
+    const detail = await getBoardDetail(req.params.slug, req.user, dateStr, req.gradeContext);
 
     if (!detail) {
       respondError(req, res, 404, '学科板块不存在');
@@ -2512,11 +2254,18 @@ function createApp(options = {}) {
 
     const diffDays = Math.round((today - selectedDateObj) / (1000 * 60 * 60 * 24));
 
-    let display = '今天';
-    if (diffDays === 1) display = '昨天';
-    else if (diffDays === 2) display = '前天';
-    else if (diffDays > 2) display = dateStr;
-    else if (diffDays < 0) display = dateStr;
+    function formatDisplayDate(dateObj, diffDays, locale) {
+      const m = dateObj.getMonth() + 1;
+      const d = dateObj.getDate();
+      const y = dateObj.getFullYear();
+      const formatted = `${m}/${d}/${y}`;
+      if (diffDays === 0) return locale === 'en' ? `Today ${formatted}` : `今天 ${formatted}`;
+      if (diffDays === 1) return locale === 'en' ? `Yesterday ${formatted}` : `昨天 ${formatted}`;
+      if (diffDays === 2) return locale === 'en' ? `2 days ago ${formatted}` : `前天 ${formatted}`;
+      return formatted;
+    }
+
+    let display = formatDisplayDate(selectedDateObj, diffDays, res.locals.locale);
 
     const prevDateObj = new Date(selectedDateObj);
     prevDateObj.setDate(prevDateObj.getDate() - 1);
@@ -2527,7 +2276,7 @@ function createApp(options = {}) {
     const nextDate = nextDateObj.toISOString().split('T')[0];
 
     const isToday = !dateStr || dateStr === todayStr;
-    const isFuture = selectedDateObj.getTime() >= today.getTime();
+    const isFuture = selectedDateObj.getTime() > today.getTime();
 
     res.render('board', {
       pageTitle: `${detail.board.name} CJ`,
@@ -2540,6 +2289,57 @@ function createApp(options = {}) {
         nextDate,
         isToday: isToday && !dateStr,
         isFuture: isFuture
+      }
+    });
+  });
+
+  app.get('/boards/:slug/cj', async (req, res) => {
+    const dateStr = req.query.date || null;
+    const detail = await getBoardDetail(req.params.slug, req.user, dateStr, req.gradeContext);
+
+    if (!detail) {
+      res.status(404).json({ error: '学科板块不存在' });
+      return;
+    }
+
+    const cstOffset = 8 * 60 * 60 * 1000;
+    const today = new Date(Date.now() + cstOffset);
+    today.setHours(0, 0, 0, 0);
+
+    const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+    const todayStr = today.toISOString().split('T')[0];
+
+    let selectedDateObj = null;
+    if (dateStr) {
+      selectedDateObj = new Date(dateStr);
+      selectedDateObj.setHours(0, 0, 0, 0);
+    } else {
+      selectedDateObj = new Date(today);
+    }
+
+    const prevDateObj = new Date(selectedDateObj);
+    prevDateObj.setDate(prevDateObj.getDate() - 1);
+    const prevDate = prevDateObj.toISOString().split('T')[0];
+
+    const nextDateObj = new Date(selectedDateObj);
+    nextDateObj.setDate(nextDateObj.getDate() + 1);
+    const nextDate = nextDateObj.toISOString().split('T')[0];
+
+    const isFuture = selectedDateObj.getTime() >= today.getTime();
+    const isWithinRange = dateStr && dateStr >= sevenDaysAgoStr && dateStr <= todayStr;
+    const canGoPrev = dateStr && dateStr > sevenDaysAgoStr;
+
+    res.json({
+      sections: detail.sections,
+      dateNav: {
+        prevDate,
+        nextDate,
+        isFuture,
+        isWithinRange,
+        canGoPrev,
+        sevenDaysAgo: sevenDaysAgoStr,
+        today: todayStr
       }
     });
   });
@@ -2560,7 +2360,8 @@ function createApp(options = {}) {
     const section = String(req.body.section || '').trim();
     const title = String(req.body.title || sectionTitles[section] || '').trim();
     const content = String(req.body.content || '').trim();
-    const sectionDate = String(req.body.date || "date('now', 'localtime')").trim();
+    const sectionDate = String(req.body.date || '').trim();
+    const isToday = !sectionDate;
 
     if (!sectionTitles[section]) {
       respondError(req, res, 400, 'CJ 分区不合法');
@@ -2568,7 +2369,7 @@ function createApp(options = {}) {
     }
 
     if (needsAIAudit(req.user.role_level, 'cj')) {
-      const auditResult = await auditContent(content, 'cj');
+      const auditResult = await auditContent(content, '', 'cj');
       if (!auditResult.passed) {
         respondError(req, res, 403, `内容违规：${auditResult.reason}`);
         return;
@@ -2576,47 +2377,28 @@ function createApp(options = {}) {
       await applyContentCredit(req.user.id, 'cj', true);
     }
 
-    if (sectionDate === "date('now', 'localtime')") {
+    const existing = await query.get(`
+      SELECT id FROM board_sections
+      WHERE board_id = ? AND section = ?
+    `, [detail.board.id, section]);
+
+    const effectiveDate = isToday ? "date('now', 'localtime')" : sectionDate;
+
+    if (existing) {
       await query.run(`
-        INSERT INTO board_sections (board_id, section, section_date, title, content, updated_by, updated_at)
-        VALUES (?, ?, date('now', 'localtime'), ?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(board_id, section, section_date)
-        DO UPDATE SET title = excluded.title, content = excluded.content, updated_by = excluded.updated_by, updated_at = CURRENT_TIMESTAMP
-      `, [detail.board.id, section, title || sectionTitles[section], content, req.user.id]);
+        UPDATE board_sections
+        SET section_date = ?, title = ?, content = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `, [effectiveDate, title || sectionTitles[section], content, req.user.id, existing.id]);
     } else {
       await query.run(`
         INSERT INTO board_sections (board_id, section, section_date, title, content, updated_by, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(board_id, section, section_date)
-        DO UPDATE SET title = excluded.title, content = excluded.content, updated_by = excluded.updated_by, updated_at = CURRENT_TIMESTAMP
-      `, [detail.board.id, section, sectionDate, title || sectionTitles[section], content, req.user.id]);
+        VALUES (?, ?, ${isToday ? "date('now', 'localtime')" : '?'}, ?, ?, ?, CURRENT_TIMESTAMP)
+      `, isToday ? [detail.board.id, section, title || sectionTitles[section], content, req.user.id] : [detail.board.id, section, sectionDate, title || sectionTitles[section], content, req.user.id]);
     }
 
     setFlash(req, 'success', `${sectionTitles[section]} 已更新`);
     res.redirect(`/boards/${req.params.slug}`);
-  });
-
-  app.get('/chat', async (req, res) => {
-    await query.run(`
-      DELETE FROM chat_messages
-      WHERE datetime(created_at) < datetime('now', '-24 hours')
-      AND is_rejected = 1
-    `);
-
-    const chatMessages = await query.all(`
-      SELECT chat_messages.*, users.name AS author_name
-      FROM chat_messages
-      JOIN users ON users.id = chat_messages.user_id
-      WHERE chat_messages.status IN ('approved', 'visible_pending') AND chat_messages.is_rejected = 0
-      AND datetime(chat_messages.created_at) > datetime('now', '-24 hours')
-      ORDER BY datetime(chat_messages.created_at) ASC
-    `);
-
-    res.render('chat', {
-      pageTitle: '聊天',
-      currentPath: '/chat',
-      chatMessages
-    });
   });
 
   app.get('/homeworks', (req, res) => {
@@ -2695,146 +2477,6 @@ function createApp(options = {}) {
 
     setFlash(req, 'success', '作业状态已更新');
     res.redirect('/homeworks');
-  });
-
-  app.get('/resources/new', requireAuth, requireLevel(3), async (req, res) => {
-    const boards = await getBoards();
-    res.render('resources-form', {
-      pageTitle: '上传资源',
-      currentPath: '/resources/new',
-      boards,
-      isNew: true
-    });
-  });
-
-  app.get('/resources', async (req, res) => {
-    const boards = await getBoards();
-    const filters = {
-      subject: String(req.query.subject || '').trim(),
-      q: String(req.query.q || '').trim()
-    };
-    const conditions = ['(resources.status = \'approved\' OR resources.uploaded_by = ?)'];
-    const params = [req.user ? req.user.id : -1];
-
-    if (filters.subject) {
-      conditions.push('boards.slug = ?');
-      params.push(filters.subject);
-    }
-
-    if (filters.q) {
-      conditions.push('(resources.title LIKE ? OR resources.description LIKE ? OR resources.teacher LIKE ?)');
-      params.push(`%${filters.q}%`, `%${filters.q}%`, `%${filters.q}%`);
-    }
-
-    const resources = await query.all(`
-      SELECT resources.*, boards.name AS board_name, boards.slug AS board_slug,
-             users.name AS uploader_name
-      FROM resources
-      JOIN boards ON boards.id = resources.board_id
-      LEFT JOIN users ON users.id = resources.uploaded_by
-      WHERE ${conditions.join(' AND ')}
-      ORDER BY resources.like_count DESC, datetime(resources.created_at) DESC
-    `, params);
-
-    res.render('resources', {
-      pageTitle: '课件库',
-      boards,
-      resources,
-      filters
-    });
-  });
-
-  app.post('/resources', requireAuth, upload.single('resourceFile'), async (req, res) => {
-    const boardId = Number(req.body.board_id || 0);
-    const title = String(req.body.title || '').trim();
-    const description = String(req.body.description || '').trim();
-    const teacher = String(req.body.teacher || '').trim();
-    const externalUrl = String(req.body.external_url || '').trim();
-    const board = await getBoardById(boardId);
-    const hasFile = Boolean(req.file);
-    const status = isStaff(req.user) ? 'approved' : 'pending';
-
-    if (!board || !title || (!hasFile && !externalUrl)) {
-      respondError(req, res, 400, '请至少提供标题与文件或资源链接');
-      return;
-    }
-
-    const filePath = hasFile ? `/uploads/${req.file.filename}` : '';
-    const fileName = hasFile ? req.file.originalname : '';
-
-    await query.run(`
-      INSERT INTO resources (
-        board_id, title, description, teacher, file_name, file_path, external_url, status, uploaded_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [boardId, title, description, teacher, fileName, filePath, externalUrl, status, req.user.id]);
-
-    if (wantsJson(req)) {
-      res.status(201).json({ ok: true, status });
-      return;
-    }
-
-    setFlash(req, 'success', status === 'approved' ? '资源已上传' : '资源已提交，等待审核');
-    res.redirect('/resources');
-  });
-
-  app.get('/resources/:id/download', async (req, res) => {
-    const resource = await query.get('SELECT * FROM resources WHERE id = ?', [req.params.id]);
-
-    if (!resource || resource.status !== 'approved') {
-      respondError(req, res, 404, '资源不存在');
-      return;
-    }
-
-    await query.run('UPDATE resources SET download_count = download_count + 1 WHERE id = ?', [req.params.id]);
-
-    if (resource.external_url) {
-      res.redirect(resource.external_url);
-      return;
-    }
-
-    if (resource.file_path) {
-      res.redirect(resource.file_path);
-      return;
-    }
-
-    respondError(req, res, 404, '资源文件不存在');
-  });
-
-  app.post('/resources/:id/like', requireAuth, async (req, res) => {
-    const resource = await query.get('SELECT * FROM resources WHERE id = ?', [req.params.id]);
-
-    if (!resource) {
-      respondError(req, res, 404, '资源不存在');
-      return;
-    }
-
-    await query.run('UPDATE resources SET like_count = like_count + 1 WHERE id = ?', [req.params.id]);
-
-    if (wantsJson(req)) {
-      const latest = await query.get('SELECT like_count FROM resources WHERE id = ?', [req.params.id]);
-      res.json({ like_count: latest.like_count });
-      return;
-    }
-
-    res.redirect('/resources');
-  });
-
-  app.post('/chat/messages', requireAuth, async (req, res) => {
-    const content = String(req.body.content || '').trim();
-
-    if (content.length < 1 || content.length > 200) {
-      respondError(req, res, 400, '聊天内容需在 1-200 个字符之间');
-      return;
-    }
-
-    await query.run('INSERT INTO chat_messages (content, user_id) VALUES (?, ?)', [content, req.user.id]);
-
-    if (wantsJson(req)) {
-      res.status(201).json({ ok: true });
-      return;
-    }
-
-    res.redirect('/');
   });
 
   app.get('/search', async (req, res) => {
@@ -2922,11 +2564,24 @@ function createApp(options = {}) {
   });
 
   app.get('/api/dashboard', async (req, res) => {
-    res.json(await getDashboardData(req.user));
+    res.json(await getDashboardData(req.user, null, req.gradeContext));
   });
 
   app.get('/api/boards', async (req, res) => {
-    res.json({ boards: await getBoards() });
+    res.json({ boards: await getBoards(null, req.gradeContext) });
+  });
+
+  app.get('/api/classes', async (req, res) => {
+    const grade = req.query.grade || (req.gradeContext && req.gradeContext.grade);
+    if (!grade) {
+      res.json([]);
+      return;
+    }
+    const classes = await query.all(
+      'SELECT class_name FROM grade_classes WHERE grade = ? ORDER BY sort_order, class_name',
+      [grade]
+    );
+    res.json(classes.map(c => c.class_name));
   });
 
   app.get('/api/forum/posts', async (req, res) => {
@@ -2958,6 +2613,11 @@ function createApp(options = {}) {
   app.post('/api/forum/posts/:id/like', requireAuth, async (req, res) => {
     const postId = Number(req.params.id);
     const userId = req.user.id;
+
+    if (req.user.role_level === 0) {
+      res.status(403).json({ error: 'LV0用户无法点赞，请先登录升级为LV1' });
+      return;
+    }
 
     const post = await query.get('SELECT id FROM posts WHERE id = ?', [postId]);
     if (!post) {
@@ -3135,21 +2795,45 @@ function createApp(options = {}) {
     const boardId = Number(req.body.board_id || 0);
     const title = String(req.body.title || '').trim();
     const description = String(req.body.description || '').trim();
-    const teacher = String(req.body.teacher || '').trim();
     const externalUrl = String(req.body.external_url || '').trim();
+    const resourceType = String(req.body.resource_type || '').trim();
     const board = await getBoardById(boardId);
     const hasFile = Boolean(req.file);
 
-    if (!board || !title || (!hasFile && !externalUrl)) {
-      res.status(400).json({ error: '请至少提供标题与文件或资源链接' });
+    if (!board || !title) {
+      res.status(400).json({ error: '请选择学科并填写标题' });
+      return;
+    }
+
+    if (resourceType === 'external' && !externalUrl) {
+      res.status(400).json({ error: '请输入外部链接' });
+      return;
+    }
+
+    if (resourceType === 'file' && !hasFile) {
+      res.status(400).json({ error: '请上传文件' });
+      return;
+    }
+
+    if (!resourceType || (!externalUrl && !hasFile)) {
+      res.status(400).json({ error: '请选择资源类型并提供相应内容' });
+      return;
+    }
+
+    if (hasFile && req.file.size > 100 * 1024 * 1024) {
+      res.status(400).json({ error: '文件大小不能超过 100MB' });
       return;
     }
 
     let initialStatus = 'pending';
+    let needsHumanReview = false;
+
     if (isStaff(req.user)) {
       initialStatus = 'approved';
+    } else if (getUserLevel(req.user) === 4) {
+      needsHumanReview = true;
     } else if (needsAIAudit(getUserLevel(req.user), 'resource')) {
-      const auditResult = await auditContent(`${title}\n\n${description}`, 'resource');
+      const auditResult = await auditContent(title, description, 'resource');
       if (!auditResult.passed) {
         res.status(403).json({ error: `内容违规：${auditResult.reason}` });
         return;
@@ -3162,110 +2846,166 @@ function createApp(options = {}) {
     const fileName = hasFile ? req.file.originalname : '';
     const result = await query.run(`
       INSERT INTO resources (
-        board_id, title, description, teacher, file_name, file_path, external_url, status, uploaded_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [boardId, title, description, teacher, fileName, filePath, externalUrl, initialStatus, req.user.id]);
+        board_id, title, description, file_name, file_path, external_url, status, uploaded_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `, [boardId, title, description, fileName, filePath, externalUrl, initialStatus, req.user.id]);
+
+    if (needsHumanReview) {
+      await createReviewItem('resource', result.lastID, req.user.id, false);
+    }
 
     res.status(201).json({ resourceId: result.lastID, status: initialStatus });
   });
 
-  app.post('/api/chat/messages', requireAuth, async (req, res) => {
+  app.get('/api/chat/messages/:id/status', async (req, res) => {
+    const messageId = Number(req.params.id);
+    const message = await query.get(
+      'SELECT id, status, is_rejected FROM chat_messages WHERE id = ?',
+      [messageId]
+    );
+
+    if (!message) {
+      res.status(404).json({ error: '消息不存在' });
+      return;
+    }
+
+    res.json({
+      id: message.id,
+      status: message.is_rejected ? 'rejected' : message.status
+    });
+  });
+
+  app.post('/api/chat/messages', async (req, res) => {
     const content = String(req.body.content || '').trim();
-    const userLevel = req.user.role_level;
 
     if (content.length < 1 || content.length > 200) {
       res.status(400).json({ error: '聊天内容需在 1-200 个字符之间' });
       return;
     }
 
-    const creditInfo = await query.get('SELECT chat_cooldown_until, consecutive_rejects FROM user_credit WHERE user_id = ?', [req.user.id]);
-    if (creditInfo && creditInfo.chat_cooldown_until) {
-      const cooldownTime = new Date(creditInfo.chat_cooldown_until);
-      if (cooldownTime > new Date()) {
-        const remainingMinutes = Math.ceil((cooldownTime - new Date()) / 60000);
-        res.status(429).json({
-          error: '请等待冷却时间结束',
-          cooldownMinutes: remainingMinutes
-        });
-        return;
+    const isAuthenticated = !!(req.user && req.user.id);
+    const userLevel = isAuthenticated ? req.user.role_level : 0;
+    const userId = isAuthenticated ? req.user.id : null;
+
+    let guestId = null;
+    if (!isAuthenticated) {
+      guestId = req.cookies.guest_id;
+      if (!guestId) {
+        guestId = 'G' + Math.floor(100000000 + Math.random() * 900000000).toString();
+        res.cookie('guest_id', guestId, { maxAge: 365 * 24 * 60 * 60 * 1000, httpOnly: true });
       }
     }
 
-    const needsReview = needsAIAudit(userLevel, 'chat');
+    if (isAuthenticated && userLevel >= 2) {
+      const result = await query.run(
+        'INSERT INTO chat_messages (content, user_id, status, is_pending) VALUES (?, ?, ?, ?)',
+        [content, userId, 'approved', 0]
+      );
+      res.status(201).json({
+        message: {
+          id: result.lastID,
+          content,
+          author_name: req.user.name,
+          created_at: new Date().toISOString(),
+          created_at_display: new Date().toLocaleString('zh-CN'),
+          canDelete: true
+        }
+      });
+      return;
+    }
+
+    if (isAuthenticated) {
+      const creditInfo = await query.get('SELECT chat_cooldown_until, consecutive_rejects FROM user_credit WHERE user_id = ?', [userId]);
+      if (creditInfo && creditInfo.chat_cooldown_until) {
+        const cooldownTime = new Date(creditInfo.chat_cooldown_until);
+        if (cooldownTime > new Date()) {
+          const remainingMinutes = Math.ceil((cooldownTime - new Date()) / 60000);
+          res.status(429).json({
+            error: '请等待冷却时间结束',
+            cooldownMinutes: remainingMinutes
+          });
+          return;
+        }
+      }
+    }
+
+    const needsReview = userLevel <= 1;
     const initialStatus = needsReview ? 'pending' : 'approved';
 
     const result = await query.run(
-      'INSERT INTO chat_messages (content, user_id, status, is_pending) VALUES (?, ?, ?, ?)',
-      [content, req.user.id, initialStatus, needsReview ? 1 : 0]
+      'INSERT INTO chat_messages (content, user_id, status, is_pending, guest_id) VALUES (?, ?, ?, ?, ?)',
+      [content, userId, initialStatus, needsReview ? 1 : 0, guestId]
     );
 
-    const message = await query.get(`
-      SELECT chat_messages.*, users.name AS author_name
-      FROM chat_messages
-      JOIN users ON users.id = chat_messages.user_id
-      WHERE chat_messages.id = ?
-    `, [result.lastID]);
-
     if (needsReview) {
-      auditContent(content, 'chat').then(async (auditResult) => {
+      const messageId = result.lastID;
+
+      auditContent(content, '', 'chat').then(async (auditResult) => {
         if (!auditResult.passed) {
           await query.run(
             'UPDATE chat_messages SET is_rejected = 1, reviewed_at = CURRENT_TIMESTAMP WHERE id = ?',
-            [result.lastID]
+            [messageId]
           );
 
-          const consecutiveRejects = (creditInfo?.consecutive_rejects || 0) + 1;
-          const cooldownMinutes = Math.min(30, 5 * consecutiveRejects);
+          if (isAuthenticated) {
+            const creditInfo = await query.get('SELECT consecutive_rejects FROM user_credit WHERE user_id = ?', [userId]);
+            const consecutiveRejects = (creditInfo?.consecutive_rejects || 0) + 1;
+            const cooldownMinutes = Math.min(30, 5 * consecutiveRejects);
 
-          await query.run(
-            'UPDATE user_credit SET chat_cooldown_until = datetime(CURRENT_TIMESTAMP, ?), consecutive_rejects = ? WHERE user_id = ?',
-            [`+${cooldownMinutes} minutes`, consecutiveRejects, req.user.id]
-          );
+            await query.run(
+              'UPDATE user_credit SET chat_cooldown_until = datetime(CURRENT_TIMESTAMP, ?), consecutive_rejects = ? WHERE user_id = ?',
+              [`+${cooldownMinutes} minutes`, consecutiveRejects, userId]
+            );
 
-          await applyContentCredit(req.user.id, 'chat', false);
+            await applyContentCredit(userId, 'chat', false);
+          }
 
-          if (userLevel === 0) {
-            req.app.locals.sendToUser && req.app.locals.sendToUser(req.user.id, {
+          if (isAuthenticated) {
+            req.app.locals.sendToUser && req.app.locals.sendToUser(userId, {
               type: 'chat_rejected',
-              messageId: result.lastID,
-              reason: auditResult.reason,
-              cooldownMinutes
+              messageId,
+              reason: auditResult.reason
             });
           }
         } else {
+          console.log('[Chat] AI审核通过, messageId:', messageId, 'userLevel:', userLevel);
           await query.run(
-            'UPDATE chat_messages SET status = "approved", is_pending = 0, reviewed_at = CURRENT_TIMESTAMP WHERE id = ?',
-            [result.lastID]
+            'UPDATE chat_messages SET status = ?, is_pending = 0, reviewed_at = CURRENT_TIMESTAMP WHERE id = ?',
+            ['approved', messageId]
           );
 
-          await query.run(
-            'UPDATE user_credit SET consecutive_rejects = 0 WHERE user_id = ?',
-            [req.user.id]
-          );
+          if (isAuthenticated) {
+            await query.run(
+              'UPDATE user_credit SET consecutive_rejects = 0 WHERE user_id = ?',
+              [userId]
+            );
+            await applyContentCredit(userId, 'chat', true);
 
-          await applyContentCredit(req.user.id, 'chat', true);
-
-          req.app.locals.sendToUser && req.app.locals.sendToUser(req.user.id, {
-            type: 'chat_approved',
-            messageId: result.lastID
-          });
+            req.app.locals.sendToUser && req.app.locals.sendToUser(userId, {
+              type: 'chat_approved',
+              messageId
+            });
+          }
         }
       });
 
-      if (userLevel === 0) {
-        res.status(201).json({
-          pending: true,
-          messageId: result.lastID,
-          message: '审核完成后可以发送下条消息'
-        });
-      } else {
-        res.status(201).json({
-          pending: true,
-          messageId: result.lastID,
-          message: '消息已提交审核'
-        });
-      }
+      const responseMessage = userLevel === 0
+        ? '你的消息正在由AI审核中，审核完成后可以发布下一条'
+        : '消息已提交审核';
+
+      res.status(201).json({
+        pending: true,
+        messageId: result.lastID,
+        message: responseMessage
+      });
     } else {
+      const message = await query.get(`
+        SELECT chat_messages.*, COALESCE(users.name, '游客') AS author_name
+        FROM chat_messages
+        LEFT JOIN users ON users.id = chat_messages.user_id
+        WHERE chat_messages.id = ?
+      `, [result.lastID]);
+
       res.status(201).json({
         message: {
           id: message.id,
@@ -3276,6 +3016,29 @@ function createApp(options = {}) {
         }
       });
     }
+  });
+
+  app.delete('/api/chat/messages/:id', async (req, res) => {
+    if (!req.user) {
+      res.status(401).json({ error: '请先登录' });
+      return;
+    }
+
+    const messageId = Number(req.params.id);
+    const message = await query.get('SELECT * FROM chat_messages WHERE id = ?', [messageId]);
+
+    if (!message) {
+      res.status(404).json({ error: '消息不存在' });
+      return;
+    }
+
+    if (message.user_id !== req.user.id && req.user.role_level !== 6) {
+      res.status(403).json({ error: '没有权限删除此消息' });
+      return;
+    }
+
+    await query.run('DELETE FROM chat_messages WHERE id = ?', [messageId]);
+    res.json({ ok: true });
   });
 
   app.get('/api/search', async (req, res) => {
@@ -3291,6 +3054,11 @@ function createApp(options = {}) {
     const limit = 20;
     const offset = (page - 1) * limit;
     const type = req.query.type || 'all';
+
+    await query.run(
+      'UPDATE notifications SET is_read = 1, read_at = CURRENT_TIMESTAMP WHERE user_id = ? AND is_read = 0',
+      [req.user.id]
+    );
 
     let typeFilter = '';
     if (type === 'unread') {
@@ -3388,6 +3156,32 @@ function createApp(options = {}) {
     res.json({ ok: true });
   });
 
+  app.get('/api/stats/views', async (req, res) => {
+    const stats = await query.get('SELECT view_count FROM site_stats WHERE id = 1');
+    res.json({ viewCount: stats ? stats.view_count : 0 });
+  });
+
+  app.post('/api/stats/record-view', async (req, res) => {
+    const now = Date.now();
+    const oneMinuteAgo = now - 60000;
+    const viewToken = req.cookies.view_token || String(now);
+    const lastViewTime = parseInt(req.cookies.last_view_time || '0', 10);
+
+    if (lastViewTime > oneMinuteAgo) {
+      const stats = await query.get('SELECT view_count FROM site_stats WHERE id = 1');
+      res.json({ viewCount: stats ? stats.view_count : 0, recorded: false });
+      return;
+    }
+
+    await query.run('UPDATE site_stats SET view_count = view_count + 1, last_view_at = CURRENT_TIMESTAMP WHERE id = 1');
+    const stats = await query.get('SELECT view_count FROM site_stats WHERE id = 1');
+
+    res.cookie('view_token', viewToken, { maxAge: 365 * 24 * 60 * 60 * 1000, httpOnly: true });
+    res.cookie('last_view_time', String(now), { maxAge: 365 * 24 * 60 * 60 * 1000, httpOnly: true });
+
+    res.json({ viewCount: stats ? stats.view_count : 0, recorded: true });
+  });
+
   app.get('/api/search/history', requireAuth, async (req, res) => {
     const history = await query.all(`
       SELECT * FROM search_history WHERE user_id = ? ORDER BY datetime(created_at) DESC LIMIT 10
@@ -3469,16 +3263,121 @@ function createApp(options = {}) {
       SELECT * FROM roles WHERE level NOT IN (55, 6) ORDER BY level ASC
     `);
 
+    const today = new Date().toISOString().split('T')[0];
+    const level = user.role_level;
+
+    let reportLimit = 0;
+    if (level >= 5) reportLimit = 20;
+    else if (level >= 3) reportLimit = 10;
+    else if (level >= 1) reportLimit = 5;
+
+    let appealLimit = 0;
+    if (level >= 5) appealLimit = -1;
+    else if (level >= 4) appealLimit = 5;
+    else if (level >= 3) appealLimit = 3;
+
+    const todayReports = await query.get(`
+      SELECT COUNT(*) AS count FROM reports
+      WHERE reporter_id = ? AND date(created_at) = ?
+    `, [req.user.id, today]);
+
+    const todayAppeals = await query.get(`
+      SELECT COUNT(*) AS count FROM review_appeals
+      WHERE user_id = ? AND date(created_at) = ?
+    `, [req.user.id, today]);
+
+    const reportUsed = todayReports ? todayReports.count : 0;
+    const appealUsed = todayAppeals ? todayAppeals.count : 0;
+    const reportRemaining = reportLimit > 0 ? Math.max(0, reportLimit - reportUsed) : 0;
+    const appealRemaining = appealLimit === -1 ? -1 : Math.max(0, appealLimit - appealUsed);
+
+    const locale = res.locals.locale || 'zh';
+    let usageGuideContent = '';
+    try {
+      const path = require('path');
+      const fs = require('fs');
+      const guidePath = path.join(__dirname, 'docs', `usage-guide.${locale}.md`);
+      usageGuideContent = fs.readFileSync(guidePath, 'utf8');
+    } catch (e) {
+      try {
+        const fallback = require('path').join(__dirname, 'docs', 'usage-guide.zh.md');
+        usageGuideContent = require('fs').readFileSync(fallback, 'utf8');
+      } catch (e2) {
+        usageGuideContent = '';
+      }
+    }
+
     res.render('settings', {
       pageTitle: 'settings.title',
       currentPath: '/settings',
-      user,
+      user: {
+        ...user,
+        role_name: roleInfo ? roleInfo.name : 'LV' + user.role_level,
+        credit: credit ? credit.credit : 0
+      },
       credit,
       creditHistory,
       roleInfo,
       nextLevel,
-      allRoles
+      allRoles,
+      reportLimit,
+      reportUsed,
+      reportRemaining,
+      appealLimit,
+      appealUsed,
+      appealRemaining,
+      usageGuideContent
     });
+  });
+
+  app.post('/api/settings/grade', requireAuth, async (req, res) => {
+    const { grade, password } = req.body;
+    const user = await query.get('SELECT password_hash FROM users WHERE id = ?', [req.user.id]);
+
+    if (!user || !(await bcrypt.compare(String(password || ''), user.password_hash))) {
+      res.status(403).json({ error: '密码验证失败' });
+      return;
+    }
+
+    if (!/^G(6|7|8|9|10|11|12)$/.test(grade)) {
+      res.status(400).json({ error: '无效的年级' });
+      return;
+    }
+
+    await query.run('UPDATE users SET grade = ? WHERE id = ?', [grade, req.user.id]);
+    res.json({ ok: true });
+  });
+
+  app.post('/api/settings/class', requireAuth, async (req, res) => {
+    const { class_name, password } = req.body;
+    const user = await query.get('SELECT password_hash, grade FROM users WHERE id = ?', [req.user.id]);
+
+    if (!user || !(await bcrypt.compare(String(password || ''), user.password_hash))) {
+      res.status(403).json({ error: '密码验证失败' });
+      return;
+    }
+
+    if (!['G6', 'G7', 'G8'].includes(user.grade)) {
+      res.status(400).json({ error: '只有 G6-G8 年级需要班级' });
+      return;
+    }
+
+    if (!class_name) {
+      res.status(400).json({ error: '班级不能为空' });
+      return;
+    }
+
+    const validClass = await query.get(
+      'SELECT id FROM grade_classes WHERE grade = ? AND class_name = ?',
+      [user.grade, class_name.toUpperCase()]
+    );
+    if (!validClass) {
+      res.status(400).json({ error: '该班级不存在' });
+      return;
+    }
+
+    await query.run('UPDATE users SET class_name = ? WHERE id = ?', [class_name.toUpperCase(), req.user.id]);
+    res.json({ ok: true });
   });
 
   app.post('/api/settings/deactivate', requireAuth, async (req, res) => {
@@ -3493,6 +3392,12 @@ function createApp(options = {}) {
     await query.run('UPDATE users SET banned_until = datetime(CURRENT_TIMESTAMP, "+100 years") WHERE id = ?', [req.user.id]);
     req.session.destroy();
     res.json({ success: true });
+  });
+
+  app.post('/api/settings/locale', requireAuth, async (req, res) => {
+    const locale = req.body.locale === 'en' ? 'en' : 'zh';
+    await query.run('UPDATE users SET locale = ? WHERE id = ?', [locale, req.user.id]);
+    res.json({ ok: true, locale });
   });
 
   app.get('/dashboard', requireAuth, requireLevel(3), async (req, res) => {
@@ -3547,11 +3452,13 @@ function createApp(options = {}) {
     const offset = (page - 1) * limit;
     const userLevel = getUserLevel(req.user);
 
-    let statusFilter = "ri.status = 'pending'";
+    let typeFilter = '';
     if (userLevel === 3) {
-      statusFilter = "ri.status = 'pending' AND ri.item_type = 'chat'";
+      typeFilter = "AND ri.item_type IN ('chat', 'homework')";
     } else if (userLevel === 4) {
-      statusFilter = "ri.status = 'pending' AND ri.item_type IN ('chat', 'post')";
+      typeFilter = "AND ri.item_type IN ('chat', 'post', 'homework', 'resource')";
+    } else if (userLevel >= 5) {
+      typeFilter = "AND ri.item_type IN ('chat', 'post', 'homework', 'resource')";
     }
 
     const items = await query.all(`
@@ -3561,13 +3468,13 @@ function createApp(options = {}) {
       FROM review_items ri
       JOIN users u ON u.id = ri.created_by
       LEFT JOIN users r ON r.id = ri.reviewer_id
-      WHERE ${statusFilter}
+      WHERE ri.status = 'pending' ${typeFilter}
       ORDER BY datetime(ri.created_at) DESC
       LIMIT ? OFFSET ?
     `, [limit, offset]);
 
     const countRow = await query.get(`
-      SELECT COUNT(*) AS total FROM review_items ri WHERE ${statusFilter}
+      SELECT COUNT(*) AS total FROM review_items ri WHERE ri.status = 'pending' ${typeFilter}
     `);
 
     res.json({
@@ -3731,7 +3638,40 @@ function createApp(options = {}) {
     res.json({ ok: true, message: '审核驳回' });
   });
 
+  async function getReportTargetInfo(targetType, targetId) {
+    if (targetType === 'post') {
+      return await query.get('SELECT user_id FROM posts WHERE id = ?', [targetId]);
+    } else if (targetType === 'comment') {
+      return await query.get('SELECT user_id FROM comments WHERE id = ?', [targetId]);
+    } else if (targetType === 'chat') {
+      return await query.get('SELECT user_id FROM chat_messages WHERE id = ?', [targetId]);
+    } else if (targetType === 'resource') {
+      return await query.get('SELECT user_id FROM resources WHERE id = ?', [targetId]);
+    } else if (targetType === 'cj') {
+      return await query.get('SELECT created_by AS user_id FROM board_sections WHERE id = ?', [targetId]);
+    }
+    return null;
+  }
+
+  function getReportMinReviewerLevel(reportedUserLevel) {
+    const level = Number(reportedUserLevel || 0);
+    if (level <= 2) return 3;
+    if (level === 3) return 4;
+    if (level === 4) return 5;
+    if (level === 5) return 5;
+    if (level === 55) return 6;
+    return 5;
+  }
+
   app.post('/api/reports', requireAuth, async (req, res) => {
+    const limitResult = await getDailyReportAppealLimit(req.user, 'report');
+    if (!limitResult.allowed) {
+      res.status(429).json({
+        error: `今日举报次数已用完（${limitResult.limit}次），将于明日凌晨重置`
+      });
+      return;
+    }
+
     const targetType = String(req.body.target_type || '').trim();
     const targetId = Number(req.body.target_id || 0);
     const reason = String(req.body.reason || '').trim();
@@ -3751,10 +3691,23 @@ function createApp(options = {}) {
       return;
     }
 
+    const targetInfo = await getReportTargetInfo(targetType, targetId);
+    const targetUserId = targetInfo ? targetInfo.user_id : null;
+
+    let minReviewerLevel = 4;
+    if (targetUserId) {
+      const targetUser = await query.get('SELECT role_level FROM users WHERE id = ?', [targetUserId]);
+      if (targetUser) {
+        minReviewerLevel = getReportMinReviewerLevel(targetUser.role_level);
+      }
+    }
+
     const result = await query.run(
-      'INSERT INTO reports (reporter_id, target_type, target_id, reason) VALUES (?, ?, ?, ?)',
-      [req.user.id, targetType, targetId, reason]
+      'INSERT INTO reports (reporter_id, target_type, target_id, target_user_id, reason, min_reviewer_level) VALUES (?, ?, ?, ?, ?, ?)',
+      [req.user.id, targetType, targetId, targetUserId, reason, minReviewerLevel]
     );
+
+    await incrementDailyCount(req.user.id, 'report');
 
     const invalidReportCount = await query.get(`
       SELECT COUNT(*) AS count FROM reports
@@ -3805,7 +3758,15 @@ function createApp(options = {}) {
     });
   });
 
-  app.post('/api/appeals', requireAuth, requireLevel(1), async (req, res) => {
+  app.post('/api/appeals', requireAuth, requireLevel(3), async (req, res) => {
+    const limitResult = await getDailyReportAppealLimit(req.user, 'appeal');
+    if (!limitResult.allowed) {
+      res.status(429).json({
+        error: `今日申诉次数已用完（${limitResult.limit}次），将于明日凌晨重置`
+      });
+      return;
+    }
+
     const contentType = String(req.body.content_type || '').trim();
     const contentId = Number(req.body.content_id || 0);
     const appealReason = String(req.body.appeal_reason || '').trim();
@@ -3829,6 +3790,8 @@ function createApp(options = {}) {
       'INSERT INTO review_appeals (user_id, content_type, content_id, appeal_reason) VALUES (?, ?, ?, ?)',
       [req.user.id, contentType, contentId, appealReason]
     );
+
+    await incrementDailyCount(req.user.id, 'appeal');
 
     if (contentType === 'post') {
       await query.run("UPDATE posts SET review_status = 'hidden' WHERE id = ?", [contentId]);
@@ -3929,6 +3892,36 @@ function createApp(options = {}) {
         page,
         totalPages: Math.ceil((reviewCount ? reviewCount.total : 0) / limit),
         totalItems: reviewCount ? reviewCount.total : 0
+      }
+    });
+  });
+
+  app.get('/api/review/ai-reviewing', requireAuth, requireLevel(3), async (req, res) => {
+    const page = Math.max(1, Number(req.query.page || 1));
+    const limit = 20;
+    const offset = (page - 1) * limit;
+    const typeFilter = req.query.type ? `AND ri.item_type = '${req.query.type}'` : '';
+
+    const items = await query.all(`
+      SELECT ri.*,
+             u.name AS author_name
+      FROM review_items ri
+      JOIN users u ON u.id = ri.created_by
+      WHERE ri.status = 'pending' AND ri.ai_reviewed = 0 ${typeFilter}
+      ORDER BY datetime(ri.created_at) DESC
+      LIMIT ? OFFSET ?
+    `, [limit, offset]);
+
+    const countRow = await query.get(`
+      SELECT COUNT(*) AS total FROM review_items ri WHERE ri.status = 'pending' AND ri.ai_reviewed = 0 ${typeFilter}
+    `);
+
+    res.json({
+      items,
+      pagination: {
+        page,
+        totalPages: Math.ceil((countRow ? countRow.total : 0) / limit),
+        totalItems: countRow ? countRow.total : 0
       }
     });
   });
@@ -4254,7 +4247,7 @@ function createApp(options = {}) {
   });
 
   async function startServer(startOptions = {}) {
-    await initializeDatabase();
+    await initDatabaseFromModule(db, query, ensureCreditRecord);
 
     const port = startOptions.port ?? Number(process.env.PORT || 3000);
     const host = startOptions.host ?? process.env.HOST ?? '0.0.0.0';
@@ -4299,14 +4292,14 @@ function createApp(options = {}) {
 
   app.locals.db = db;
   app.locals.query = query;
-  app.locals.initializeDatabase = initializeDatabase;
+  app.locals.initializeDatabase = initDatabaseFromModule;
   app.locals.startServer = startServer;
 
   return {
     app,
     db,
     query,
-    initializeDatabase,
+    initializeDatabase: initDatabaseFromModule,
     startServer,
     paths: {
       dbPath,

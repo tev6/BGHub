@@ -4,8 +4,8 @@
         <h1 data-i18n="settings.title">用户设置</h1>
     </section>
 
-    <section class="layout-grid">
-        <div class="content-stack">
+    <section class="layout-grid settings-layout">
+        <div class="settings-main">
             <article class="card section-card">
                 <h3 data-i18n="settings.accountInfo">账户信息</h3>
                 <div class="info-grid">
@@ -19,8 +19,16 @@
                     </div>
                     <div class="info-item">
                         <span class="info-label" data-i18n="settings.grade">年级</span>
-                        <span class="info-value"><%= user.grade %></span>
+                        <span class="info-value" id="current-grade"><%= user.grade %></span>
+                        <button type="button" class="btn btn-sm btn-ghost" onclick="showGradeEdit()">修改年级</button>
                     </div>
+                    <% if (['G6', 'G7', 'G8'].includes(user.grade)) { %>
+                    <div class="info-item" id="class-info-item">
+                        <span class="info-label">班级</span>
+                        <span class="info-value" id="current-class"><%= user.class_name || '-' %></span>
+                        <button type="button" class="btn btn-sm btn-ghost" onclick="showClassEdit()">修改班级</button>
+                    </div>
+                    <% } %>
                     <div class="info-item">
                         <span class="info-label" data-i18n="settings.registeredAt">注册时间</span>
                         <span class="info-value"><%= formatDate(user.created_at, true) %></span>
@@ -41,7 +49,7 @@
                 <div class="credit-display">
                     <div class="credit-item">
                         <span class="credit-value"><%= credit ? credit.credit : 0 %></span>
-                        <span class="credit-label" data-i18n="settings.credit">积分</span>
+                        <span class="credit-label" data-i18n="settings.credit">信用分</span>
                     </div>
                 </div>
                 <% if (nextLevel && nextLevel.min_credit > 0) { %>
@@ -54,11 +62,11 @@
                             <strong><%= nextLevel.name %></strong>
                         </div>
                         <div class="progress-bar">
-                            <div class="progress-fill" style="width: <%= progress %>%"></div>
+                            <div class="progress-fill" style="width: <%= progress %>%;"></div>
                         </div>
                         <div class="progress-footer">
                             <span><%= currentCredit %> / <%= nextLevel.min_credit %></span>
-                            <span data-i18n="settings.creditsNeeded"><%= needed %> 积分</span>
+                            <span data-i18n="settings.creditsNeeded"><%= needed %> 信用分</span>
                         </div>
                     </div>
                 <% } else if (user.role_level >= 5) { %>
@@ -69,28 +77,66 @@
             </article>
 
             <article class="card section-card">
+                <h3>每日额度</h3>
+                <div class="quota-grid">
+                    <div class="quota-item">
+                        <span class="quota-label">举报次数</span>
+                        <span class="quota-value">
+                            <% if (reportLimit > 0) { %>
+                                <%= reportRemaining %>/<%= reportLimit %> 次
+                            <% } else { %>
+                                不可举报
+                            <% } %>
+                        </span>
+                    </div>
+                    <div class="quota-item">
+                        <span class="quota-label">申诉次数</span>
+                        <span class="quota-value">
+                            <% if (appealLimit === -1) { %>
+                                无限制
+                            <% } else if (appealLimit > 0) { %>
+                                <%= appealRemaining %>/<%= appealLimit %> 次
+                            <% } else { %>
+                                不可申诉
+                            <% } %>
+                        </span>
+                    </div>
+                </div>
+            </article>
+
+            <article class="card section-card">
                 <h3 data-i18n="settings.currentPermissions">当前权限</h3>
                 <ul class="permissions-list">
-                    <li><span class="permission-check">✓</span><span data-i18n="settings.permChat">在年级群发言</span></li>
-                    <% if (user.role_level >= 2) { %>
-                        <li><span class="permission-check">✓</span><span data-i18n="settings.permPost">发布文章/笔记</span></li>
+                    <li><span class="permission-check">✓</span><span>聊天发言<% if (user.role_level <= 1) { %>（需AI审核）<% } %></span></li>
+                    <% if (user.role_level >= 1) { %>
+                        <li><span class="permission-check">✓</span><span>发布CJ作业<% if (user.role_level <= 2) { %>（需AI+人工审核）<% } %></span></li>
                     <% } else { %>
-                        <li><span class="permission-lock">🔒</span><span data-i18n="settings.permPostLocked">发布文章/笔记（需 LV2）</span></li>
+                        <li><span class="permission-lock">🔒</span><span>发布CJ作业（需LV1）</span></li>
                     <% } %>
-                    <% if (user.role_level >= 3) { %>
-                        <li><span class="permission-check">✓</span><span data-i18n="settings.permResource">上传资源</span></li>
+                    <% if (user.role_level >= 2) { %>
+                        <li><span class="permission-check">✓</span><span>发布文章/笔记<% if (user.role_level <= 3) { %>（需AI+人工审核）<% } else if (user.role_level === 4) { %>（需AI审核）<% } %></span></li>
                     <% } else { %>
-                        <li><span class="permission-lock">🔒</span><span data-i18n="settings.permResourceLocked">上传资源（需 LV3）</span></li>
+                        <li><span class="permission-lock">🔒</span><span>发布文章/笔记（需LV2）</span></li>
                     <% } %>
                     <% if (user.role_level >= 4) { %>
-                        <li><span class="permission-check">✓</span><span data-i18n="settings.permCJ">维护 CJ 内容</span></li>
+                        <li><span class="permission-check">✓</span><span>上传资源<% if (user.role_level === 4) { %>（需人工审核）<% } %></span></li>
                     <% } else { %>
-                        <li><span class="permission-lock">🔒</span><span data-i18n="settings.permCJLocked">维护 CJ 内容（需 LV4）</span></li>
+                        <li><span class="permission-lock">🔒</span><span>上传资源（需LV4）</span></li>
                     <% } %>
                     <% if (user.role_level >= 3) { %>
-                        <li><span class="permission-check">✓</span><span data-i18n="settings.permReview">参与内容审核</span></li>
+                        <li><span class="permission-check">✓</span><span>参与内容审核</span></li>
                     <% } else { %>
-                        <li><span class="permission-lock">🔒</span><span data-i18n="settings.permReviewLocked">参与内容审核（需 LV3）</span></li>
+                        <li><span class="permission-lock">🔒</span><span>参与内容审核（需LV3）</span></li>
+                    <% } %>
+                    <% if (user.role_level >= 1) { %>
+                        <li><span class="permission-check">✓</span><span>举报内容（每日<%= reportLimit %>次）</span></li>
+                    <% } else { %>
+                        <li><span class="permission-lock">🔒</span><span>举报内容（需LV1）</span></li>
+                    <% } %>
+                    <% if (user.role_level >= 3) { %>
+                        <li><span class="permission-check">✓</span><span>申诉审核结果<% if (appealLimit > 0) { %>（每日<%= appealLimit %>次）<% } %></span></li>
+                    <% } else { %>
+                        <li><span class="permission-lock">🔒</span><span>申诉审核结果（需LV3）</span></li>
                     <% } %>
                 </ul>
             </article>
@@ -102,21 +148,21 @@
                         <div class="level-item <%= role.level === user.role_level ? 'current' : '' %>">
                             <div class="level-header">
                                 <span class="level-badge-small" style="background: <%= role.badge_color %>"><%= role.name %></span>
-                                <span class="level-requirement"><%= role.min_credit %> <span data-i18n="settings.credits">积分</span></span>
+                                <span class="level-requirement"><%= role.min_credit %> <span data-i18n="settings.credits">信用分</span></span>
                             </div>
                             <ul class="level-permissions">
                                 <% if (role.level === 0) { %>
-                                    <li data-i18n="settings.lv0Perms">浏览、发言（审核）、受限功能</li>
+                                    <li>聊天（AI审核），不可发布其他内容</li>
                                 <% } else if (role.level === 1) { %>
-                                    <li data-i18n="settings.lv1Perms">连续发言、快速审核</li>
+                                    <li>聊天（AI审核），CJ（AI+人工），举报5次/日</li>
                                 <% } else if (role.level === 2) { %>
-                                    <li data-i18n="settings.lv2Perms">发布文章/笔记</li>
+                                    <li>聊天（免审），文章/CJ（AI+人工），举报5次/日</li>
                                 <% } else if (role.level === 3) { %>
-                                    <li data-i18n="settings.lv3Perms">上传资源、参与审核</li>
+                                    <li>文章（AI+人工），可审核，举报10次，申诉3次</li>
                                 <% } else if (role.level === 4) { %>
-                                    <li data-i18n="settings.lv4Perms">维护 CJ 内容</li>
+                                    <li>资源（人工），文章（AI），申诉5次</li>
                                 <% } else if (role.level === 5) { %>
-                                    <li data-i18n="settings.lv5Perms">高级权限</li>
+                                    <li>资源免审，申诉无限制，高级审核权</li>
                                 <% } %>
                             </ul>
                         </div>
@@ -125,7 +171,7 @@
             </article>
 
             <article class="card section-card">
-                <h3 data-i18n="settings.creditHistory">积分历史</h3>
+                <h3 data-i18n="settings.creditHistory">信用分历史</h3>
                 <% if (creditHistory && creditHistory.length) { %>
                     <div class="history-list">
                         <% creditHistory.forEach(log => { %>
@@ -146,7 +192,7 @@
                         <% }) %>
                     </div>
                 <% } else { %>
-                    <div class="empty-state" data-i18n="settings.noHistory">暂无积分记录</div>
+                    <div class="empty-state" data-i18n="settings.noHistory">暂无信用分记录</div>
                 <% } %>
             </article>
 
@@ -156,6 +202,15 @@
                 <button class="btn btn-danger" type="button" onclick="showDeactivateModal()" data-i18n="settings.deactivateAccount">注销账户</button>
             </article>
         </div>
+
+        <aside class="settings-sidebar">
+            <article class="card section-card">
+                <h3 data-i18n="settings.usageGuide">BGHub使用说明</h3>
+                <div class="markdown-body usage-guide-content">
+                    <%- renderMarkdown(usageGuideContent || '') %>
+                </div>
+            </article>
+        </aside>
     </section>
 
     <div class="modal modal-hidden" id="deactivate-modal">
@@ -174,6 +229,58 @@
         </div>
     </div>
 
+    <div class="modal modal-hidden" id="grade-edit-modal">
+        <div class="modal-backdrop" onclick="hideGradeEditModal()"></div>
+        <div class="modal-content">
+            <h3>修改年级</h3>
+            <form id="grade-edit-form">
+                <label class="form-group">
+                    <span class="form-label">新年级</span>
+                    <select name="grade" class="form-control" id="grade-new-select" required>
+                        <option value="">选择年级</option>
+                        <% ['G6','G7','G8','G9','G10','G11','G12'].forEach(g => { %>
+                            <option value="<%= g %>"><%= g %></option>
+                        <% }) %>
+                    </select>
+                </label>
+                <label class="form-group">
+                    <span class="form-label">密码验证</span>
+                    <input class="form-control" type="password" name="password" placeholder="输入密码确认" required>
+                </label>
+                <div class="modal-actions">
+                    <button class="btn btn-ghost" type="button" onclick="hideGradeEditModal()">取消</button>
+                    <button class="btn btn-primary" type="submit">保存</button>
+                </div>
+            </form>
+            <div class="modal-error modal-hidden" id="grade-edit-error"></div>
+        </div>
+    </div>
+
+    <div class="modal modal-hidden" id="class-edit-modal">
+        <div class="modal-backdrop" onclick="hideClassEditModal()"></div>
+        <div class="modal-content">
+            <h3>修改班级</h3>
+            <form id="class-edit-form">
+                <label class="form-group">
+                    <span class="form-label">新班级</span>
+                    <select name="class_name" class="form-control" id="class-new-select" required>
+                        <option value="">选择班级</option>
+                    </select>
+                    <span class="helper-text" id="class-edit-loading" style="color: var(--muted); display: none;">加载班级中...</span>
+                </label>
+                <label class="form-group">
+                    <span class="form-label">密码验证</span>
+                    <input class="form-control" type="password" name="password" placeholder="输入密码确认" required>
+                </label>
+                <div class="modal-actions">
+                    <button class="btn btn-ghost" type="button" onclick="hideClassEditModal()">取消</button>
+                    <button class="btn btn-primary" type="submit">保存</button>
+                </div>
+            </form>
+            <div class="modal-error modal-hidden" id="class-edit-error"></div>
+        </div>
+    </div>
+
     <script>
     function showDeactivateModal() {
         document.getElementById('deactivate-modal').classList.remove('modal-hidden');
@@ -183,6 +290,72 @@
         document.getElementById('deactivate-modal').classList.add('modal-hidden');
         document.getElementById('deactivate-error').classList.add('modal-hidden');
         document.getElementById('deactivate-form').reset();
+    }
+
+    function showGradeEdit() {
+        document.getElementById('grade-edit-modal').classList.remove('modal-hidden');
+    }
+
+    function hideGradeEditModal() {
+        document.getElementById('grade-edit-modal').classList.add('modal-hidden');
+        document.getElementById('grade-edit-error').classList.add('modal-hidden');
+        document.getElementById('grade-edit-form').reset();
+    }
+
+    function showClassEdit() {
+        document.getElementById('class-edit-modal').classList.remove('modal-hidden');
+        loadClassesForGradeEdit();
+    }
+
+    function hideClassEditModal() {
+        document.getElementById('class-edit-modal').classList.add('modal-hidden');
+        document.getElementById('class-edit-error').classList.add('modal-hidden');
+        document.getElementById('class-edit-form').reset();
+    }
+
+    async function loadClassesForGradeEdit() {
+        var gradeSelect = document.getElementById('grade-new-select');
+        var classSelect = document.getElementById('class-new-select');
+        var loadingMsg = document.getElementById('class-edit-loading');
+        var currentGrade = document.getElementById('current-grade').textContent;
+
+        if (!['G6', 'G7', 'G8'].includes(currentGrade)) {
+            gradeSelect = document.getElementById('grade-new-select');
+        }
+
+        var grade = currentGrade;
+        if (gradeSelect && ['G6', 'G7', 'G8'].includes(gradeSelect.value)) {
+            grade = gradeSelect.value;
+        }
+
+        classSelect.innerHTML = '<option value="">加载中...</option>';
+        loadingMsg.style.display = 'block';
+
+        try {
+            var res = await fetch('/api/grades/classes?grade=' + encodeURIComponent(grade));
+            var data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.error || '加载失败');
+            }
+
+            var classes = data.classes || [];
+            if (classes.length === 0) {
+                classSelect.innerHTML = '<option value="">该年级暂无班级配置</option>';
+            } else {
+                classSelect.innerHTML = '<option value="">选择班级</option>';
+                classes.forEach(function(cls) {
+                    var option = document.createElement('option');
+                    option.value = cls.class_name;
+                    option.textContent = 'Class ' + cls.class_name;
+                    classSelect.appendChild(option);
+                });
+            }
+        } catch (err) {
+            classSelect.innerHTML = '<option value="">加载失败</option>';
+        } finally {
+            loadingMsg.style.display = 'none';
+        }
     }
 
     document.getElementById('deactivate-form').addEventListener('submit', async (e) => {
@@ -211,6 +384,66 @@
             errorEl.classList.remove('modal-hidden');
         }
     });
+
+    document.getElementById('grade-edit-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const errorEl = document.getElementById('grade-edit-error');
+
+        try {
+            const response = await fetch('/api/settings/grade', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    grade: formData.get('grade'),
+                    password: formData.get('password')
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                errorEl.textContent = data.error || '修改失败';
+                errorEl.classList.remove('modal-hidden');
+                return;
+            }
+
+            window.location.reload();
+        } catch (err) {
+            errorEl.textContent = err.message;
+            errorEl.classList.remove('modal-hidden');
+        }
+    });
+
+    document.getElementById('class-edit-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const errorEl = document.getElementById('class-edit-error');
+
+        try {
+            const response = await fetch('/api/settings/class', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    class_name: formData.get('class_name'),
+                    password: formData.get('password')
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                errorEl.textContent = data.error || '修改失败';
+                errorEl.classList.remove('modal-hidden');
+                return;
+            }
+
+            window.location.reload();
+        } catch (err) {
+            errorEl.textContent = err.message;
+            errorEl.classList.remove('modal-hidden');
+        }
+    });
     </script>
 
     <style>
@@ -232,6 +465,27 @@
     }
     .info-value {
         font-size: 1rem;
+        color: var(--foreground);
+    }
+    .quota-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+    .quota-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    .quota-label {
+        font-size: 0.75rem;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .quota-value {
+        font-size: 1.25rem;
+        font-weight: 600;
         color: var(--foreground);
     }
     .level-display {
@@ -440,17 +694,19 @@
         display: none;
     }
     .modal-backdrop {
-        position: absolute;
+        position: fixed;
         inset: 0;
         background: rgba(0, 0, 0, 0.5);
+        z-index: -1;
     }
     .modal-content {
         position: relative;
-        background: var(--background);
+        background: #ffffff;
         padding: 1.5rem;
         border-radius: 0.75rem;
         max-width: 400px;
         width: 90%;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
     }
     .modal-actions {
         display: flex;
@@ -469,6 +725,33 @@
     }
     .modal-error.modal-hidden {
         display: none;
+    }
+    .settings-layout {
+        display: grid;
+        grid-template-columns: 1fr 380px;
+        gap: 1.5rem;
+        align-items: start;
+    }
+    .settings-main {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    .settings-sidebar {
+        position: sticky;
+        top: 1rem;
+    }
+    .usage-guide-content {
+        max-height: 500px;
+        overflow-y: auto;
+        font-size: 0.875rem;
+    }
+    .usage-guide-content h1 {
+        font-size: 1.25rem;
+        margin-top: 0;
+    }
+    .usage-guide-content h2 {
+        font-size: 1.1rem;
     }
     </style>
 <%- include('partials/footer') %>

@@ -1,7 +1,7 @@
 <%- include('partials/header') %>
     <section class="page-title">
         <span class="eyebrow" data-i18n="nav.subtitle">Help Forum</span>
-        <h1 data-i18n="forum.title">互助广场</h1>
+        <h1 data-i18n="forum.title">文章</h1>
         <p data-i18n="forum.description">按学科筛选问题、笔记与资源分享，支持匿名提问、回复与已解决状态。</p>
     </section>
 
@@ -34,7 +34,7 @@
     <section class="forum-list">
         <% if (posts.length) { %>
             <% posts.forEach(post => { %>
-                <article class="card forum-card">
+                <article class="card forum-card" data-post-url="/forum/<%= post.id %>" onclick="handleForumCardClick(event)">
                     <div class="panel-head panel-head--compact">
                         <div class="tag-row">
                             <span class="tag"><%= post.board_name %></span>
@@ -45,7 +45,7 @@
                         </div>
                         <span class="helper-text"><%= formatDate(post.created_at, true) %></span>
                     </div>
-                    <h3><a href="/forum/<%= post.id %>"><%= post.title %></a></h3>
+                    <h3><a href="/forum/<%= post.id %>" onclick="event.stopPropagation()"><%= post.title %></a></h3>
                     <p class="forum-content"><%= excerpt(post.content, 160) %></p>
                     <div class="meta-row">
                         <% if (post.is_anonymous) { %>

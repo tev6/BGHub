@@ -48,6 +48,9 @@
 </template>
 
 <script>
+import { formatDate } from '../utils/date.js';
+import { excerpt } from '../utils/text.js';
+
 export default {
   name: 'ArticleList',
   props: {
@@ -62,23 +65,11 @@ export default {
     };
   },
   methods: {
-    excerpt(content, length = 120) {
-      if (!content) return '';
-      const plain = content.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-      return plain.length <= length ? plain : `${plain.slice(0, length)}…`;
-    },
+    excerpt,
     extractFirstImageUrl(content) {
       if (!content) return '';
       const match = content.match(/!\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)|<img[^>]+src=["']([^"']+)["']/i);
       return match ? (match[1] || match[2] || '') : '';
-    },
-    formatDate(dateValue, includeTime = false) {
-      if (!dateValue) return '—';
-      const date = new Date(dateValue);
-      if (Number.isNaN(date.getTime())) return '—';
-      return includeTime
-        ? date.toLocaleString('zh-CN', { hour12: false })
-        : date.toLocaleDateString('zh-CN');
     }
   }
 };

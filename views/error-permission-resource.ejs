@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>权限不足 - BG Hub</title>
+    <script>
+    (function() {
+      var saved = localStorage.getItem('bigz-hub-theme');
+      if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+      } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+    </script>
+    <script>
+    window.i18n = {
+      currentLocale: 'zh',
+      translations: {},
+      init: function() {
+        var saved = localStorage.getItem('locale');
+        var locale = saved || 'zh';
+        this.currentLocale = locale;
+        this.loadTranslations(locale);
+      },
+      loadTranslations: function(locale) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '/locales/' + locale + '.json', false);
+        xhr.send();
+        if (xhr.status === 200) {
+          this.translations = JSON.parse(xhr.responseText);
+        }
+      },
+      t: function(key) {
+        var keys = key.split('.');
+        var value = this.translations;
+        for (var i = 0; i < keys.length; i++) {
+          if (value && typeof value === 'object') {
+            value = value[keys[i]];
+          } else {
+            return key;
+          }
+        }
+        return value || key;
+      },
+      getLocale: function() { return this.currentLocale; },
+      applyTranslations: function() {
+        document.querySelectorAll('[data-i18n]').forEach(function(el) {
+          var key = el.getAttribute('data-i18n');
+          var text = i18n.t(key);
+          if (text !== key) el.textContent = text;
+        });
+      },
+      updateToggleState: function() {
+        var singleBtn = document.querySelector('.locale-toggle-single');
+        if (singleBtn) {
+          var span = singleBtn.querySelector('[data-i18n="nav.langSwitch"]');
+          if (span) span.textContent = this.currentLocale === 'zh' ? 'EN' : '中';
+        }
+      },
+      setLocale: function(locale) {
+        localStorage.setItem('locale', locale);
+        this.loadTranslations(locale);
+        this.currentLocale = locale;
+        this.applyTranslations();
+        this.updateToggleState();
+      }
+    };
+    i18n.init();
+    document.addEventListener('DOMContentLoaded', function() {
+      i18n.applyTranslations();
+      i18n.updateToggleState();
+    });
+    </script>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+    .error-container {
+        min-height: 60vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+    }
+    .error-content {
+        text-align: center;
+        max-width: 500px;
+    }
+    .error-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+    .error-code {
+        font-size: 6rem;
+        font-weight: 700;
+        color: var(--danger);
+        line-height: 1;
+        margin-bottom: 1rem;
+    }
+    .error-title {
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+        color: var(--text-primary);
+    }
+    .error-message {
+        color: var(--text-secondary);
+        margin-bottom: 1.5rem;
+        line-height: 1.6;
+    }
+    .error-detail {
+        background: var(--bg-secondary);
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        color: var(--text-secondary);
+    }
+    .error-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    .permission-info {
+        background: var(--bg-secondary);
+        border-left: 4px solid var(--info);
+        padding: 1rem;
+        margin: 1.5rem 0;
+        text-align: left;
+        border-radius: 0 8px 8px 0;
+    }
+    .permission-info h3 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1rem;
+        color: var(--info);
+    }
+    .permission-info ul {
+        margin: 0;
+        padding-left: 1.5rem;
+        color: var(--text-secondary);
+    }
+    .permission-info li {
+        margin-bottom: 0.25rem;
+    }
+    </style>
+</head>
+<body>
+    <header class="site-header">
+        <div class="header-shell">
+            <a href="/" class="brand-group">
+                <div class="logo-link">
+                    <img src="/images/logo-light.svg" alt="BG Hub" class="site-logo site-logo-light">
+                    <img src="/images/logo-dark.svg" alt="BG Hub" class="site-logo site-logo-dark">
+                </div>
+            </a>
+            <div class="header-actions">
+                <button class="btn btn-primary locale-toggle-single" type="button" onclick="i18n.setLocale(i18n.getLocale() === 'zh' ? 'en' : 'zh')" title="Switch Language">
+                    <span data-i18n="nav.langSwitch">EN</span>
+                </button>
+                <button class="theme-toggle" type="button" onclick="ThemeManager.toggle()" aria-label="Toggle theme">
+                    <span class="theme-icon-dark" style="display:none">☀️</span>
+                    <span class="theme-icon-light">🌙</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container error-container">
+        <div class="error-content">
+            <div class="error-icon">📁</div>
+            <div class="error-code">403</div>
+            <h1 class="error-title">暂无权限上传资源</h1>
+            <p class="error-message">抱歉，您的信用等级不足以访问资源上传功能。请提升信用分后再试。</p>
+
+            <div class="permission-info">
+                <h3>📋 资源上传权限说明</h3>
+                <ul>
+                    <li>LV0 - LV3：不可上传资源</li>
+                    <li>LV4：可上传资源，需经过人工审核</li>
+                    <li>LV5+：可上传资源，直接发布</li>
+                </ul>
+            </div>
+
+            <% if (locals.message) { %>
+                <p class="error-detail"><%= message %></p>
+            <% } %>
+
+            <div class="error-actions">
+                <a href="/" class="btn btn-primary">返回主页</a>
+                <a href="/resources" class="btn btn-ghost">浏览资源</a>
+            </div>
+        </div>
+    </main>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>
