@@ -140,6 +140,34 @@ async function initializeDatabase(db, query, extraEnsureCreditRecord) {
     console.error('[DB Cleanup] CJ内容清理失败:', e.message);
   }
 
+  await query.run(`CREATE TABLE IF NOT EXISTS board_section_revisions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    board_id INTEGER NOT NULL,
+    section_key TEXT NOT NULL,
+    section_date TEXT NOT NULL,
+    class_name TEXT,
+    old_content TEXT NOT NULL,
+    new_content TEXT NOT NULL,
+    changed_by INTEGER NOT NULL,
+    changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(board_id) REFERENCES boards(id) ON DELETE CASCADE,
+    FOREIGN KEY(changed_by) REFERENCES users(id) ON DELETE CASCADE
+  )`);
+  await query.run('CREATE INDEX IF NOT EXISTS idx_section_revisions_lookup ON board_section_revisions(board_id, section_key, section_date, class_name)');
+
+  try {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const deleteResult = await query.run(
+      "DELETE FROM board_section_revisions WHERE changed_at < ?",
+      [thirtyDaysAgo]
+    );
+    if (deleteResult.changes > 0) {
+      console.log(`[DB Cleanup] 已自动清理 ${deleteResult.changes} 条超过30天的CJ修改记录`);
+    }
+  } catch (e) {
+    console.error('[DB Cleanup] CJ修改记录清理失败:', e.message);
+  }
+
   await query.run(`CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT NOT NULL UNIQUE,

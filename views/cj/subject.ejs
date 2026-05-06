@@ -26,7 +26,7 @@
                         <span>›</span>
                     </button>
                     <% if (user && user.role_level >= 1) { %>
-                        <a href="/cj/edit?subject=<%= board.slug %>&date=<%= currentDate || '' %>" class="btn btn-ghost" style="margin-left: auto;">✏️ 编辑</a>
+                        <a href="/cj/edit?subject=<%= board.slug %>&date=<%= currentDate || '' %>" class="btn btn-ghost" style="margin-left: auto;" data-i18n-title="cj.editButton">✏️ <%= locale === 'en' ? 'Edit' : '编辑' %></a>
                     <% } %>
                 </div>
             </div>
@@ -35,10 +35,21 @@
                 <% ['IC', 'HW', 'A'].forEach(function(sectionKey) { %>
                     <article class="card cj-section-block" data-section="<%= sectionKey %>">
                         <div class="panel-head">
-                            <span class="eyebrow"><%= (locale === 'en' && sectionTitlesEn[sectionKey]) ? sectionTitlesEn[sectionKey] : sectionTitles[sectionKey] %></span>
-                            <% if (locale === 'en' && sectionTitlesEn[sectionKey]) { %>
-                                <span class="section-original-title"><%= sectionTitles[sectionKey] %></span>
-                            <% } %>
+                            <span class="eyebrow"><%= sectionKey %></span>
+                            <div class="section-actions">
+                                <% if (sections[sectionKey]) { %>
+                                    <% if (sections[sectionKey].updated_by && sections[sectionKey].updated_by_name) { %>
+                                    <span class="section-meta" title="最后修改">
+                                        <%= sections[sectionKey].updated_by_name %> · <%= sections[sectionKey].updated_at ? new Date(sections[sectionKey].updated_at).toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '' %>
+                                    </span>
+                                    <% } %>
+                                    <% if (user && user.role_level >= 1) { %>
+                                    <button type="button" class="btn btn-ghost btn-xs report-btn" data-section="<%= sectionKey %>" title="<%= locale === 'en' ? 'Report' : '举报' %>">
+                                        🚩
+                                    </button>
+                                    <% } %>
+                                <% } %>
+                            </div>
                         </div>
                         <div class="section-markdown">
                             <%- renderMarkdown(sections[sectionKey] ? sections[sectionKey].content : '') || '<p class="empty-state">暂未填写</p>' %>
@@ -46,11 +57,21 @@
                     </article>
                 <% }); %>
             </div>
+
+            <div class="cj-revisions card" id="cj-revisions">
+                <div class="panel-head">
+                    <span class="eyebrow" data-i18n="cj.revisionHistory">修改记录</span>
+                    <button type="button" class="btn btn-ghost btn-xs" id="toggle-revisions-btn"><%= locale === 'en' ? 'Expand' : '展开' %></button>
+                </div>
+                <div class="revisions-content" id="revisions-content" style="display: none;">
+                    <div class="revisions-loading">加载中...</div>
+                </div>
+            </div>
         </div>
 
         <aside class="cj-sidebar">
             <div class="cj-sidebar-inner">
-                <h4>快速跳转</h4>
+                <h4 data-i18n="cj.quickJump">快速跳转</h4>
                 <nav class="cj-subject-nav">
                     <% boards.forEach(function(b) { %>
                         <a href="/cj/subject?subject=<%= b.slug %><%= b.class_name && b.class_name !== (gradeContext && gradeContext.class_name) ? '&class=' + b.class_name : '' %>" class="cj-subject-link <%= b.slug === board.slug && (!b.class_name || b.class_name === (gradeContext && gradeContext.class_name)) ? 'active' : '' %>">
@@ -62,10 +83,36 @@
         </aside>
     </section>
 
+    <div class="modal" id="report-modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 data-i18n="cj.reportContent">举报内容</h3>
+                <button type="button" class="modal-close" id="close-report-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p data-i18n="cj.selectReason">选择举报原因：</p>
+                <div class="report-reasons">
+                    <label><input type="radio" name="report-reason" value="人身攻击"> <%= locale === 'en' ? 'Harassment' : '人身攻击' %></label>
+                    <label><input type="radio" name="report-reason" value="垃圾广告"> <%= locale === 'en' ? 'Spam' : '垃圾广告' %></label>
+                    <label><input type="radio" name="report-reason" value="色情低俗"> <%= locale === 'en' ? 'Inappropriate content' : '色情低俗' %></label>
+                    <label><input type="radio" name="report-reason" value="违法违规"> <%= locale === 'en' ? 'Illegal content' : '违法违规' %></label>
+                    <label><input type="radio" name="report-reason" value="侵权内容"> <%= locale === 'en' ? 'Copyright infringement' : '侵权内容' %></label>
+                    <label><input type="radio" name="report-reason" value="其他"> <%= locale === 'en' ? 'Other' : '其他' %></label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-ghost" id="cancel-report-btn" data-i18n="common.cancel">取消</button>
+                <button type="button" class="btn btn-primary" id="submit-report-btn" data-i18n="cj.submitReport">提交举报</button>
+            </div>
+        </div>
+    </div>
+
     <script>
     window.CJ_SUBJECT = '<%= board.slug %>';
+    window.CJ_BOARD_ID = '<%= board.id %>';
     window.CJ_CURRENT_DATE = '<%= currentDate || "" %>';
     window.CJ_LOCALE = '<%= locale || "zh" %>';
+    window.CJ_USER_LOGGED_IN = <%= user ? 'true' : 'false' %>;
     </script>
     <script src="/js/cj-view.js"></script>
     <script>
@@ -76,14 +123,32 @@
         var boardSlug = '<%= board.slug %>';
         var isShared = <%= locals.isShared ? 'true' : 'false' %>;
         var grade = '<%= gradeContext && gradeContext.grade ? gradeContext.grade : "" %>';
-        
+        var boardId = '<%= board.id %>';
+        var sectionDate = '<%= currentDate || new Date().toISOString().split("T")[0] %>';
+        var reportSection = null;
+        var isZh = '<%= locale %>' !== 'en';
+
+        var i18n = {
+            viewingNotice: isZh ? '正在查看 %class% 班的 CJ（只读）' : 'Viewing Class %class% CJ (Read-only)',
+            expand: isZh ? '展开' : 'Expand',
+            collapse: isZh ? '收起' : 'Collapse',
+            noRevisions: isZh ? '暂无修改记录' : 'No revision history',
+            loadFailed: isZh ? '加载失败' : 'Failed to load',
+            loginRequired: isZh ? '请先登录后再举报' : 'Please login to report',
+            selectReason: isZh ? '请选择举报原因' : 'Please select a reason',
+            reportSubmitted: isZh ? '举报已提交，感谢您的反馈' : 'Report submitted. Thank you for your feedback.',
+            submitFailed: isZh ? '提交失败' : 'Submit failed',
+            modified: isZh ? '修改了' : 'modified',
+            emptyContent: isZh ? '(空)' : '(empty)'
+        };
+
         if (!isShared && grade && ['G6', 'G7', 'G8'].includes(grade)) {
             fetch('/api/classes?grade=' + grade)
                 .then(function(res) { return res.json(); })
                 .then(function(classes) {
                     var switcher = document.getElementById('class-switcher');
                     if (!switcher || !classes || classes.length === 0) return;
-                    
+
                     classes.forEach(function(cls) {
                         var btn = document.createElement('button');
                         btn.type = 'button';
@@ -101,28 +166,125 @@
                         });
                         switcher.appendChild(btn);
                     });
-                    
+
                     updateViewingNotice();
                 })
                 .catch(function(err) {
                     console.error('Failed to load classes:', err);
                 });
         }
-        
+
         function updateViewingNotice() {
             var notice = document.getElementById('viewing-class-notice');
             if (!notice) return;
-            
+
             var urlParams = new URLSearchParams(window.location.search);
             var viewingCls = urlParams.get('class') || userClass;
-            
+
             if (viewingCls && viewingCls !== userClass) {
-                notice.innerHTML = '<span class="notice-text">正在查看 ' + viewingCls + ' 班的 CJ（只读）</span>';
+                notice.innerHTML = '<span class="notice-text">' + i18n.viewingNotice.replace('%class%', viewingCls) + '</span>';
                 var editBtn = document.querySelector('a[href*="/cj/edit"]');
                 if (editBtn) {
                     editBtn.style.display = 'none';
                 }
             }
+        }
+
+        var toggleBtn = document.getElementById('toggle-revisions-btn');
+        var revisionsContent = document.getElementById('revisions-content');
+        if (toggleBtn && revisionsContent) {
+            toggleBtn.addEventListener('click', function() {
+                var isHidden = revisionsContent.style.display === 'none';
+                revisionsContent.style.display = isHidden ? 'block' : 'none';
+                toggleBtn.textContent = isHidden ? i18n.collapse : i18n.expand;
+
+                if (isHidden && revisionsContent.querySelector('.revisions-loading')) {
+                    fetch('/cj/api/revisions?boardId=' + boardId + '&sectionDate=' + sectionDate + '&className=' + encodeURIComponent(currentClass || ''))
+                        .then(function(res) { return res.json(); })
+                        .then(function(data) {
+                            if (data.revisions && data.revisions.length > 0) {
+                                var html = '<ul class="revisions-list">';
+                                data.revisions.forEach(function(r) {
+                                    var date = new Date(r.changed_at).toLocaleString(isZh ? 'zh-CN' : 'en-US');
+                                    html += '<li class="revision-item">';
+                                    html += '<span class="revision-meta"><strong>' + r.changer_name + '</strong> ' + i18n.modified + ' ' + r.section_key + '</span>';
+                                    html += '<span class="revision-time">' + date + '</span>';
+                                    html += '<div class="revision-diff"><del>' + (r.old_content || i18n.emptyContent) + '</del> → <ins>' + (r.new_content || i18n.emptyContent) + '</ins></div>';
+                                    html += '</li>';
+                                });
+                                html += '</ul>';
+                                revisionsContent.innerHTML = html;
+                            } else {
+                                revisionsContent.innerHTML = '<p class="empty-state">' + i18n.noRevisions + '</p>';
+                            }
+                        })
+                        .catch(function(err) {
+                            revisionsContent.innerHTML = '<p class="empty-state">' + i18n.loadFailed + '</p>';
+                        });
+                }
+            });
+        }
+
+        var reportModal = document.getElementById('report-modal');
+        var reportBtns = document.querySelectorAll('.report-btn');
+
+        reportBtns.forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                if (!window.CJ_USER_LOGGED_IN) {
+                    alert(i18n.loginRequired);
+                    return;
+                }
+                reportSection = btn.dataset.section;
+                reportModal.style.display = 'flex';
+            });
+        });
+
+        document.getElementById('close-report-modal').addEventListener('click', function() {
+            reportModal.style.display = 'none';
+        });
+
+        document.getElementById('cancel-report-btn').addEventListener('click', function() {
+            reportModal.style.display = 'none';
+        });
+
+        document.getElementById('submit-report-btn').addEventListener('click', function() {
+            var reason = document.querySelector('input[name="report-reason"]:checked');
+            if (!reason) {
+                alert(i18n.selectReason);
+                return;
+            }
+
+            fetch('/cj/api/report', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    boardId: boardId,
+                    sectionKey: reportSection,
+                    sectionDate: sectionDate,
+                    className: currentClass || null,
+                    reason: reason.value
+                })
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (data.ok) {
+                    alert(i18n.reportSubmitted);
+                    reportModal.style.display = 'none';
+                } else {
+                    alert(data.error || i18n.submitFailed);
+                }
+            })
+            .catch(function(err) {
+                alert(i18n.submitFailed);
+            });
+        });
+
+        if (reportModal) {
+            reportModal.addEventListener('click', function(e) {
+                if (e.target === reportModal) {
+                    reportModal.style.display = 'none';
+                }
+            });
         }
     })();
     </script>

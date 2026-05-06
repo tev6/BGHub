@@ -14,6 +14,8 @@ const ITEM_TYPES = {
   HOMEWORK: 'homework'
 };
 
+const logger = require('../utils/logger');
+
 function createReviewService({ query, creditService, notificationService, moderation, getUserLevel }) {
   async function submitForReview(itemType, itemId, userId, content, options = {}) {
     const { skipAI = false, payload = '' } = options;
@@ -76,7 +78,10 @@ function createReviewService({ query, creditService, notificationService, modera
       aiResult = moderationResult.decision === 'PASS' ? 'pass' : 'reject';
       aiReason = moderationResult.reason || '';
     } catch (error) {
-      console.error('[ReviewService] AI moderation error:', error.message);
+      logger.error('[ReviewService] AI moderation error', { 
+        error: error.message,
+        stack: error.stack 
+      });
       aiResult = 'pass';
       aiReason = `AI服务异常: ${error.message}`;
     }

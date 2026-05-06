@@ -43,4 +43,12 @@ function formatDate(dateValue, includeTime = false) {
     : cstDate.toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' });
 }
 
-module.exports = { buildCountdown, formatDate };
+function todayStr() {
+  const now = new Date(Date.now() + CST_OFFSET);
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+module.exports = { buildCountdown, formatDate, todayStr };

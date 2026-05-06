@@ -1,0 +1,98 @@
+<%- include('../partials/header') %>
+    <section class="page-title">
+        <span class="eyebrow">CJ</span>
+        <h1 data-i18n="cj.quickAccessTitle">快捷访问</h1>
+        <p><%= locale === 'en' ? 'View all subjects for ' + currentGrade + (currentClass ? ' ' + currentClass : '') + ' today' : '查看今日' + currentGrade + (currentClass ? ' ' + currentClass : '') + ' 的所有学科' %></p>
+    </section>
+
+    <section class="cj-quick-controls">
+        <form id="quick-filter-form" class="quick-filter-row">
+            <select id="quick-grade-select" class="form-control">
+                <option value="" data-i18n="cj.selectGrade">选择年级</option>
+                <option value="G6" <%= currentGrade === 'G6' ? 'selected' : '' %>>G6</option>
+                <option value="G7" <%= currentGrade === 'G7' ? 'selected' : '' %>>G7</option>
+                <option value="G8" <%= currentGrade === 'G8' ? 'selected' : '' %>>G8</option>
+                <option value="G9" <%= currentGrade === 'G9' ? 'selected' : '' %>>G9</option>
+                <option value="G10" <%= currentGrade === 'G10' ? 'selected' : '' %>>G10</option>
+                <option value="G11" <%= currentGrade === 'G11' ? 'selected' : '' %>>G11</option>
+                <option value="G12" <%= currentGrade === 'G12' ? 'selected' : '' %>>G12</option>
+            </select>
+            <% if (isG6G8 && availableClasses.length) { %>
+            <select id="quick-class-select" class="form-control">
+                <option value="" data-i18n="cj.allClasses">全部班级</option>
+                <% availableClasses.forEach(function(cls) { %>
+                <option value="<%= cls %>" <%= currentClass === cls ? 'selected' : '' %>><%= cls %></option>
+                <% }); %>
+            </select>
+            <% } else { %>
+            <input type="hidden" id="quick-class-select" value="">
+            <% } %>
+            <button type="submit" class="btn btn-primary" data-i18n="cj.jump">跳转</button>
+        </form>
+        <div class="quick-link-row">
+            <span class="helper-text" data-i18n="cj.shareLink">分享链接：</span>
+            <input type="text" id="share-link" class="form-control share-link-input" readonly value="<%= shareUrl %>">
+            <button type="button" id="copy-link-btn" class="btn btn-ghost" data-i18n="cj.copy">复制</button>
+        </div>
+    </section>
+
+    <section class="cj-grid">
+        <% boards.forEach(function(board) { %>
+            <a href="/cj/subject?subject=<%= board.slug %>&grade=<%= currentGrade %><%= currentClass ? '&class=' + currentClass : '' %>" class="cj-card card">
+                <div class="cj-card-header">
+                    <h3><%= (locale === 'en' && (board.display_name_en || board.name_en)) ? (board.display_name_en || board.name_en) : (board.display_name || board.name) %></h3>
+                    <span class="cj-card-slug"><%= board.slug %></span>
+                </div>
+                <div class="cj-card-preview">
+                    <% ['IC', 'HW', 'A'].forEach(function(sectionKey) { %>
+                        <div class="cj-preview-item">
+                            <span class="cj-preview-label"><%= sectionKey %></span>
+                            <span class="cj-preview-content <%= board.sections[sectionKey] && board.sections[sectionKey].content ? '' : 'empty' %>">
+                                <%= board.sections[sectionKey] && board.sections[sectionKey].content ? excerpt(board.sections[sectionKey].content, 40) : (locale === 'en' ? 'To be added' : '待补充') %>
+                            </span>
+                        </div>
+                    <% }); %>
+                </div>
+            </a>
+        <% }); %>
+    </section>
+
+    <% if (boards.length === 0) { %>
+    <div class="empty-state">
+        <p data-i18n="cj.noSubjects">该年级暂无可用学科</p>
+    </div>
+    <% } %>
+
+    <script>
+    (function() {
+        var form = document.getElementById('quick-filter-form');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                var grade = document.getElementById('quick-grade-select').value;
+                var cls = document.getElementById('quick-class-select').value;
+                var url = '/cj/quick?grade=' + grade;
+                if (cls) {
+                    url += '&class=' + cls;
+                }
+                window.location.href = url;
+            });
+        }
+
+        var copyBtn = document.getElementById('copy-link-btn');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', function() {
+                var input = document.getElementById('share-link');
+                input.select();
+                document.execCommand('copy');
+                var copiedText = window.i18n ? window.i18n.t('cj.copied') : '已复制!';
+                copyBtn.textContent = copiedText;
+                setTimeout(function() {
+                    var defaultText = window.i18n ? window.i18n.t('cj.copy') : '复制';
+                    copyBtn.textContent = defaultText;
+                }, 2000);
+            });
+        }
+    })();
+    </script>
+<%- include('../partials/footer') %>

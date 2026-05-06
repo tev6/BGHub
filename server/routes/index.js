@@ -8,6 +8,14 @@ const createChatRoutes = require('./chat');
 const createSearchRoutes = require('./search');
 const createAdminRoutes = require('./admin');
 const createAboutRoutes = require('./about');
+const createSettingsRoutes = require('./settings');
+const createUploadsRoutes = require('./uploads');
+const createNotificationsRoutes = require('./notifications');
+const createApiRoutes = require('./api');
+const createDashboardRoutes = require('./dashboard');
+const { createHomeRoutes } = require('./home');
+const { createReviewRoutes } = require('./review');
+const { createHomeController, createReviewController } = require('../controllers');
 
 function registerRoutes(app, {
   query,
@@ -19,6 +27,7 @@ function registerRoutes(app, {
   reviewService,
   reportService,
   notificationService,
+  dashboardService,
   renderMarkdown,
   formatDate,
   buildCountdown,
@@ -39,11 +48,21 @@ function registerRoutes(app, {
   auditContent,
   applyContentCredit,
   helpers,
-  getUserLevel
+  getUserLevel,
+  bcrypt,
+  uploadDir,
+  path
 }) {
+  const homeController = createHomeController({ dashboardService, formatDate });
+  const reviewController = createReviewController({ query, getUserLevel });
+
+  app.use('/', createHomeRoutes({ homeController, requireAuth }));
+  app.use('/', createReviewRoutes({ reviewController, requireAuth, requireLevel }));
+  app.use('/', createDashboardRoutes({ query, requireAuth, requireLevel, getUserLevel }));
+
   app.use('/', createAuthRoutes({ query, creditService, setFlash, sendVerificationEmail }));
 
-  app.use('/forum', createForumRoutes({
+  const { router: forumRouter, postService } = createForumRoutes({
     query,
     requireAuth,
     requireStaff,
@@ -65,7 +84,8 @@ function registerRoutes(app, {
     createReviewItem: helpers.createReviewItem,
     getPostDetail: helpers.getPostDetail,
     runTransaction: helpers.runTransaction
-  }));
+  });
+  app.use('/forum', forumRouter);
 
   app.use('/boards', createBoardsRoutes({
     query,
@@ -131,7 +151,8 @@ function registerRoutes(app, {
     wantsJson,
     setFlash,
     respondError,
-    getUserLevel
+    getUserLevel,
+    createReviewItem: helpers.createReviewItem
   }));
 
   app.use('/', createChatRoutes({
@@ -174,6 +195,50 @@ function registerRoutes(app, {
     wantsJson,
     setFlash
   }));
+
+  const { pageRouter: settingsPageRouter, apiRouter: settingsApiRouter } = createSettingsRoutes({
+    query,
+    requireAuth,
+    bcrypt
+  });
+  app.use('/', settingsPageRouter);
+  app.use('/api', settingsApiRouter);
+
+  app.use('/', createUploadsRoutes({ uploadDir, path }));
+
+  const { pageRouter: notificationsPageRouter, apiRouter: notificationsApiRouter } = createNotificationsRoutes({
+    query,
+    requireAuth
+  });
+  app.use('/', notificationsPageRouter);
+  app.use('/api', notificationsApiRouter);
+
+  const apiRouter = createApiRoutes({
+    query,
+    requireAuth,
+    requireStaff,
+    requireLevel,
+    creditService,
+    upload,
+    getBoards,
+    getBoardById,
+    isStaff,
+    validateEmail: helpers.validateEmail,
+    getDashboardData: helpers.getDashboardData,
+    getForumPosts: helpers.getForumPosts,
+    getPostDetail: helpers.getPostDetail,
+    createOrUpdatePost: postService.createOrUpdatePost,
+    searchAll: helpers.searchAll,
+    auditContent,
+    needsAIAudit,
+    applyContentCredit,
+    createReviewItem: helpers.createReviewItem,
+    canManagePost: helpers.canManagePost,
+    formatDate,
+    respondError,
+    wantsJson
+  });
+  app.use('/api', apiRouter);
 }
 
 module.exports = { registerRoutes };

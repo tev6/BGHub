@@ -123,7 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
           bubble.innerHTML = `
             <div class="chat-bubble-head">
               <strong>${payload.message.author_name}</strong>
-              <span>${payload.message.created_at_display || new Date().toLocaleString()}</span>
+              <span>${payload.message.created_at_display || new Date().toLocaleString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai' })}</span>
               ${deleteBtn}
             </div>
             <p>${payload.message.content}</p>

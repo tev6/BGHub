@@ -15,15 +15,23 @@ BIGZ Hub is a campus learning assistant platform designed for students at Guangz
 - **📚 Resource Library**: Centralized management of learning materials with file upload and external link support, clearly categorized for easy searching
 - **💬 Community Forum**: Q&A platform for peer-to-peer support with question posting, answers, and best answer marking
 - **🏫 Subject Boards**: Content organized by subject (Math, English, Physics, Chemistry, etc.), each board contains course content, homework, and announcements in three sections
+- **🔔 Real-time Notifications**: WebSocket-driven instant notification delivery for important reminders
+- **💭 Real-time Chat**: Class chat room with instant messaging to enhance communication between classmates
 - **🔍 Global Search**: One-click search across posts, resources, exams, homework, and all site content
+- **🛡️ Content Moderation**: AI-assisted content moderation to maintain healthy community order
 
 ### Technical Highlights
 
-- Built on Node.js + Express 5
+- Built on Node.js + Express 5 with async/await support
 - EJS template engine for page rendering
 - SQLite database for data storage, easy local deployment
+- WebSocket (ws) for real-time communication
 - RESTful API design supporting frontend-backend separation
-- Session-based user authentication with secure password hashing
+- Session-based user authentication with bcryptjs password hashing
+- Markdown content support with DOMPurify XSS protection
+- ESLint code style enforcement
+- AI content moderation (Kouri API)
+- Email service integration (Resend API)
 
 ---
 
@@ -41,7 +49,7 @@ BIGZ Hub is a campus learning assistant platform designed for students at Guangz
 
 ```bash
 git clone <repository-url>
-cd BGHub/1.0.1
+cd BGHub
 ```
 
 ### Step 2: Install Dependencies
@@ -58,17 +66,25 @@ Create a `.env` file in the project root:
 PORT=3000
 HOST=0.0.0.0
 SESSION_SECRET=your-secure-session-secret-here
+EMAIL_FROM=noreply@bghub.com
+RESEND_API_KEY=re_xxxxxxxxx
+KOURI_API_KEY=your-kouri-api-key
+KOURI_API_BASE_URL=https://api.kourichat.com/v1
 ```
 
-> **Note**: `SESSION_SECRET` must be set to a complex random string in production environments.
+> **Note**: `SESSION_SECRET` must be set to a complex random string in production environments. `RESEND_API_KEY` is for email sending functionality and is optional.
 
-### Step 4: Start the Server
+### Step 4: Initialize Database
+
+The database is automatically initialized on first run, creating all required tables and seed data.
+
+### Step 5: Start the Server
 
 ```bash
 npm start
 ```
 
-### Step 5: Access the Application
+### Step 6: Access the Application
 
 Open your browser and visit: **http://localhost:3000**
 
@@ -81,8 +97,9 @@ Open your browser and visit: **http://localhost:3000**
 1. After accessing the application, click the "Register" button in the top right
 2. Register using your school email (@basischina.com) or Gmail
 3. Select your grade level (G6-G12)
-4. Set your password (minimum 8 characters)
-5. Auto-login after successful registration
+4. G6-G8 students need to select their class (A, B, C, etc.)
+5. Set your password (minimum 8 characters)
+6. Auto-login after successful registration
 
 ### First Admin Account
 
@@ -94,8 +111,9 @@ Open your browser and visit: **http://localhost:3000**
 #### Browsing the Home Page
 
 After logging in, the home page shows:
-- Left: Latest posts and notes from classmates
-- Center: Subject boards with course content
+- Dashboard statistics (credits, level, pending homework, etc.)
+- Left: Subject boards with course content (CJ module)
+- Center: Latest posts and notes from classmates
 - Right: Class chat and latest resources
 
 #### Posting
@@ -139,7 +157,7 @@ Users earn credits through:
 - Daily login: +10 credits
 - Content approved: +3~5 credits (based on reviewer level)
 
-Credits are tied to user levels; higher levels grant more permissions.
+Credits are capped at 1000 and tied to user levels; higher levels grant more permissions.
 
 ### Subject Boards
 
@@ -163,6 +181,261 @@ Each subject board uses a CJ (Class Journal) three-section structure:
 - **IC (Instruction Content)**: Course content
 - **HW (Homework)**: Course homework
 - **A (Announcement)**: Announcements
+
+### Content Moderation
+
+Content posted by LV0-LV1 users requires review before being displayed:
+- Content from LV2+ users is automatically approved
+- AI-assisted moderation detects sensitive words and inappropriate content
+- Review queue is managed by LV3+ users
+
+---
+
+## Project Structure
+
+```
+BGHub/
+├── app.js                 # Application entry point
+├── package.json           # Project configuration
+├── .env                   # Environment variables (do not commit)
+├── .eslintrc.json          # ESLint configuration
+│
+├── data/                  # Data storage
+│   └── bigz-hub-mvp.db    # SQLite database
+│
+├── public/                # Static resources
+│   ├── css/              # Stylesheets
+│   ├── js/               # Frontend scripts
+│   ├── images/           # Image assets
+│   └── uploads/          # Uploaded files
+│
+├── views/                 # EJS templates
+│   ├── partials/         # Header, footer, and shared components
+│   ├── admin/            # Admin backend templates
+│   ├── cj/               # CJ module templates
+│   ├── home.ejs          # Home page
+│   ├── forum*.ejs        # Forum-related pages
+│   ├── board*.ejs        # Subject board pages
+│   ├── exams.ejs         # Exam calendar page
+│   ├── homeworks.ejs     # Homework dashboard page
+│   ├── resources*.ejs    # Resource library pages
+│   ├── chat.ejs          # Real-time chat page
+│   ├── notifications.ejs # Notifications page
+│   └── messages.ejs      # Messages page
+│
+├── server/                # Backend core code
+│   ├── config/           # Application configuration
+│   │   └── supercode.js # Admin verification code
+│   ├── database/         # Database module
+│   │   └── index.js     # Database initialization
+│   ├── locales/          # i18n translations
+│   │   ├── zh.json       # Chinese translations
+│   │   └── en.json      # English translations
+│   ├── middleware/        # Middleware
+│   │   ├── auth.js       # Authentication middleware
+│   │   └── locale.js     # i18n middleware
+│   ├── routes/           # Route modules
+│   │   ├── api/          # REST API
+│   │   ├── auth.js       # Auth routes
+│   │   ├── forum.js      # Forum routes
+│   │   ├── boards.js     # Subject board routes
+│   │   ├── cj.js         # CJ module routes
+│   │   ├── homeworks.js  # Homework routes
+│   │   ├── resources.js  # Resource routes
+│   │   ├── chat.js       # Chat routes
+│   │   ├── search.js     # Search routes
+│   │   └── admin.js      # Admin backend routes
+│   ├── services/         # Business service layer
+│   │   ├── credit.js     # Credit service
+│   │   ├── moderation.js # Content moderation
+│   │   └── notification.js # Notification service
+│   └── utils/            # Utility functions
+│       ├── slugify.js    # URL-friendly strings
+│       ├── date.js       # Date handling
+│       ├── markdown.js   # Markdown rendering
+│       └── sanitize.js   # HTML sanitization
+│
+├── components/            # Vue components (Storybook)
+│   └── *.vue             # Various components
+│
+├── stories/               # Storybook story files
+│
+├── tests/                 # Test files
+│   └── *.test.js         # Unit tests
+│
+├── db/                    # Database scripts
+│   ├── migrations/       # Database migrations
+│   └── *.sql             # Migration scripts
+│
+├── docs/                  # Documentation
+│   ├── openapi.yaml     # OpenAPI specification
+│   └── *.md             # Technical documentation
+│
+├── deploy.py              # Code deployment script
+├── sync_db.py             # Database sync script
+└── migrate.js             # Database migration script
+```
+
+---
+
+## Command Line Tools
+
+### Code Deployment (deploy.py)
+
+Package and upload local code to server:
+
+```bash
+# Small update (preserve existing data)
+python deploy.py -h your-server.com -p /root/mywebsite/BGHub
+
+# Full reset (replace all files)
+python deploy.py -h your-server.com -p /root/mywebsite/BGHub --mode full
+
+# Skip confirmation, deploy directly
+python deploy.py -h your-server.com -p /root/mywebsite/BGHub --yes
+```
+
+**Parameters:**
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `-h, --host` | Server address | Required |
+| `-u, --user` | Server username | root |
+| `-p, --path` | Server path | /root/mywebsite/BGHub |
+| `-y, --yes` | Skip confirmation | false |
+| `--mode` | Deployment mode (small/full) | small |
+
+### Database Sync (sync_db.py)
+
+Download database from server to local:
+
+```bash
+# Download server database to local
+python sync_db.py -h your-server.com
+
+# Specify server path
+python sync_db.py -h your-server.com -p /root/mywebsite/BGHub
+
+# Sync both database and uploads directory
+python sync_db.py -h your-server.com --uploads
+
+# Sync only uploads directory
+python sync_db.py -h your-server.com --uploads-only
+```
+
+**Parameters:**
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `-h, --host` | Server address | Required |
+| `-u, --user` | Server username | root |
+| `-p, --path` | Server path | /root/mywebsite/BGHub |
+| `-y, --yes` | Skip confirmation | false |
+| `--no-backup` | Skip local database backup | false |
+| `--uploads` | Sync uploads directory | false |
+| `--uploads-only` | Sync only uploads directory | false |
+
+---
+
+## API Reference
+
+The platform provides a complete RESTful API supporting frontend-backend separation development.
+
+### Authentication APIs
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/auth/register` | POST | User registration |
+| `/api/auth/login` | POST | User login |
+| `/api/auth/logout` | POST | User logout |
+
+### Data APIs
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/dashboard` | GET | Get dashboard data |
+| `/api/boards` | GET | Get all subject boards |
+| `/api/forum/posts` | GET/POST | Get/create posts |
+| `/api/forum/posts/:id` | GET/PUT/DELETE | Get/edit/delete post |
+| `/api/forum/posts/:id/comments` | POST | Add comment |
+| `/api/exams` | GET/POST | Get/create exams |
+| `/api/homeworks` | GET/POST | Get/create homework |
+| `/api/resources` | GET/POST | Get/upload resources |
+| `/api/search` | GET | Search all site content |
+| `/api/notifications` | GET | Get notification list |
+| `/api/notifications/unread-count` | GET | Get unread count |
+| `/api/notifications/:id/read` | POST | Mark as read |
+| `/api/chat/messages` | GET/POST | Get/send chat messages |
+
+For detailed API documentation, see [docs/openapi.yaml](docs/openapi.yaml).
+
+---
+
+## Deployment Guide
+
+### Using systemd (Linux)
+
+Create the service file `/etc/systemd/system/bghub.service`:
+
+```ini
+[Unit]
+Description=BIGZ Hub Campus Learning Assistant
+After=network.target
+
+[Service]
+Type=simple
+User=your-user
+WorkingDirectory=/path/to/BGHub
+ExecStart=/usr/bin/node app.js
+Restart=on-failure
+Environment=PORT=3000 HOST=0.0.0.0
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Start the service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable bghub
+sudo systemctl start bghub
+```
+
+### Using PM2
+
+```bash
+npm install -g pm2
+pm2 start app.js --name "bghub"
+pm2 save
+pm2 startup
+```
+
+---
+
+## Development Guide
+
+### Running Tests
+
+```bash
+npm test
+```
+
+### Code Style Checking
+
+```bash
+npm run lint        # Check code style
+npm run lint:fix    # Auto-fix style issues
+npm run format      # Format code
+```
+
+### Adding New Features
+
+1. Add route files in `server/routes/`
+2. Add business logic in `server/services/`
+3. Create or modify EJS templates in `views/`
+4. Add styles and scripts in `public/css/` or `public/js/`
+5. Add corresponding test cases in `tests/`
 
 ---
 
@@ -194,119 +467,23 @@ You can contact administrators through email or other official school channels.
 
 ---
 
-## Project Structure
+## Contributing Guidelines
 
-```
-1.0.1/
-├── app.js              # Application entry point
-├── package.json        # Project configuration
-├── data/               # Data storage
-│   ├── bigz-hub-mvp.db # SQLite database
-│   └── sessions/       # Session storage
-├── public/             # Static resources
-│   ├── css/            # Stylesheets
-│   ├── js/             # Frontend scripts
-│   └── uploads/        # Uploaded files
-├── views/              # EJS templates
-│   ├── partials/       # Header, footer, and shared components
-│   ├── home.ejs        # Home page
-│   ├── forum*.ejs      # Forum-related pages
-│   ├── board.ejs       # Subject board page
-│   ├── exams.ejs       # Exam calendar page
-│   ├── homeworks.ejs   # Homework dashboard page
-│   └── resources.ejs   # Resource library page
-├── tests/              # Test files
-│   └── app.test.js     # Unit tests
-└── server/
-    └── config/         # Server configuration
-```
+Pull Requests and Issues are welcome. Here's the contribution workflow:
 
----
+1. Fork this repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## API Reference
+### Code Style
 
-The platform provides a complete RESTful API supporting frontend-backend separation development.
-
-### Authentication APIs
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/auth/register` | POST | User registration |
-| `/api/auth/login` | POST | User login |
-| `/api/auth/logout` | POST | User logout |
-
-### Data APIs
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/dashboard` | GET | Get dashboard data |
-| `/api/boards` | GET | Get all subject boards |
-| `/api/forum/posts` | GET/POST | Get/create posts |
-| `/api/exams` | GET/POST | Get/create exams |
-| `/api/homeworks` | GET/POST | Get/create homework |
-| `/api/resources` | GET/POST | Get/upload resources |
-| `/api/search` | GET | Search all site content |
-
-For detailed API documentation, see [docs/openapi.yaml](1.0.1/docs/openapi.yaml).
-
----
-
-## Deployment Guide
-
-### Using systemd (Linux)
-
-Create the service file `/etc/systemd/system/bigz-hub.service`:
-
-```ini
-[Unit]
-Description=BIGZ Hub Campus Learning Assistant
-After=network.target
-
-[Service]
-Type=simple
-User=your-user
-WorkingDirectory=/path/to/BGHub/1.0.1
-ExecStart=/usr/bin/node app.js
-Restart=on-failure
-Environment=PORT=3000 HOST=0.0.0.0
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Start the service:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable bigz-hub
-sudo systemctl start bigz-hub
-```
-
-### Using PM2
-
-```bash
-npm install -g pm2
-pm2 start app.js --name "bigz-hub"
-pm2 save
-pm2 startup
-```
-
----
-
-## Development Guide
-
-### Running Tests
-
-```bash
-npm test
-```
-
-### Adding New Features
-
-1. Add routes and handling logic in `app.js`
-2. Create or modify EJS templates in `views/`
-3. Add styles and scripts in `public/css/` or `public/js/`
-4. Add corresponding test cases in `tests/`
+- Use 2-space indentation
+- Always use semicolons
+- Use single quotes for strings
+- Follow ESLint configuration rules
+- Add JSDoc comments for new functions
 
 ---
 

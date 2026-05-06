@@ -13,14 +13,14 @@ const REPORT_STATUS = {
 };
 
 function createReportService({ query, creditService, notificationService, getUserLevel }) {
-  async function submitReport(reporterId, targetType, targetId, reason) {
+  async function submitReport(reporterId, targetType, targetId, reason, forcedTargetUserId = null) {
     const reporter = await query.get('SELECT role_level FROM users WHERE id = ?', [reporterId]);
     if (!reporter || reporter.role_level < 1) {
       throw new Error('LV1及以上用户才能举报');
     }
 
     const dailyCount = await query.get(
-      `SELECT COUNT(*) AS count FROM reports 
+      `SELECT COUNT(*) AS count FROM reports
        WHERE reporter_id = ? AND date(created_at) = date('now')`,
       [reporterId]
     );
@@ -30,21 +30,25 @@ function createReportService({ query, creditService, notificationService, getUse
       throw new Error(`每日举报上限为${maxReports}次`);
     }
 
-    let targetUserId = null;
+    let targetUserId = forcedTargetUserId;
     let minReviewerLevel = 4;
 
-    if (targetType === TARGET_TYPES.POST) {
-      const post = await query.get('SELECT user_id FROM posts WHERE id = ?', [targetId]);
-      if (post) targetUserId = post.user_id;
-    } else if (targetType === TARGET_TYPES.COMMENT) {
-      const comment = await query.get('SELECT user_id FROM comments WHERE id = ?', [targetId]);
-      if (comment) targetUserId = comment.user_id;
-    } else if (targetType === TARGET_TYPES.CHAT) {
-      const chat = await query.get('SELECT user_id FROM chat_messages WHERE id = ?', [targetId]);
-      if (chat) targetUserId = chat.user_id;
-    } else if (targetType === TARGET_TYPES.RESOURCE) {
-      const resource = await query.get('SELECT uploaded_by FROM resources WHERE id = ?', [targetId]);
-      if (resource) targetUserId = resource.uploaded_by;
+    if (!targetUserId) {
+      if (targetType === TARGET_TYPES.POST) {
+        const post = await query.get('SELECT user_id FROM posts WHERE id = ?', [targetId]);
+        if (post) targetUserId = post.user_id;
+      } else if (targetType === TARGET_TYPES.COMMENT) {
+        const comment = await query.get('SELECT user_id FROM comments WHERE id = ?', [targetId]);
+        if (comment) targetUserId = comment.user_id;
+      } else if (targetType === TARGET_TYPES.CHAT) {
+        const chat = await query.get('SELECT user_id FROM chat_messages WHERE id = ?', [targetId]);
+        if (chat) targetUserId = chat.user_id;
+      } else if (targetType === TARGET_TYPES.RESOURCE) {
+        const resource = await query.get('SELECT uploaded_by FROM resources WHERE id = ?', [targetId]);
+        if (resource) targetUserId = resource.uploaded_by;
+      } else if (targetType === TARGET_TYPES.CJ) {
+        targetUserId = null;
+      }
     }
 
     if (targetUserId) {

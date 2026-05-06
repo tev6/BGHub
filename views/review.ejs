@@ -697,7 +697,7 @@
                         '<span class="tag">' + typeLabel + '</span>' +
                         '<span class="status-tag ' + stageClass + '">' + stageLabel + '</span>' +
                         '<span>' + authorName + '</span>' +
-                        '<span>' + new Date(time).toLocaleString() + '</span>' +
+                        '<span>' + new Date(time).toLocaleString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai' }) + '</span>' +
                         '</div>' +
                         '<p class="review-item-preview">' + escapeHtml(content) + '</p>' +
                         '</div>' +
@@ -720,7 +720,7 @@
                         '<div class="review-item-meta">' +
                         '<span class="tag">申诉-' + typeLabel + '</span>' +
                         '<span>' + authorName + '</span>' +
-                        '<span>' + new Date(time).toLocaleString() + '</span>' +
+                        '<span>' + new Date(time).toLocaleString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai' }) + '</span>' +
                         '</div>' +
                         '<p class="review-item-preview">' + escapeHtml(content) + '</p>' +
                         '</div>' +
@@ -741,7 +741,7 @@
                         '<div class="review-item-meta">' +
                         '<span class="tag">举报-' + typeLabel + '</span>' +
                         '<span>举报人: ' + authorName + '</span>' +
-                        '<span>' + new Date(time).toLocaleString() + '</span>' +
+                        '<span>' + new Date(time).toLocaleString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai' }) + '</span>' +
                         '</div>' +
                         '<p class="review-item-preview report-reason">举报原因: ' + escapeHtml(content) + '</p>' +
                         '</div>' +
@@ -844,7 +844,7 @@
                     html += '<h3>审核项信息</h3>';
                     html += '<p><strong>类型：</strong>' + (item.item_type === 'post' ? '帖子' : item.item_type === 'chat' ? '聊天消息' : '资源') + '</p>';
                     html += '<p><strong>提交者：</strong>' + (item.author_name || '未知') + '</p>';
-                    html += '<p><strong>时间：</strong>' + new Date(item.created_at).toLocaleString() + '</p>';
+                    html += '<p><strong>时间：</strong>' + new Date(item.created_at).toLocaleString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai' }) + '</p>';
                     html += '<p><strong>状态：</strong>' + item.status + '</p>';
                     html += '</div>';
                     if (content) {
@@ -862,7 +862,7 @@
                         html += '<div class="detail-section">';
                         html += '<h3>审核历史</h3>';
                         data.history.forEach(function(h) {
-                            html += '<p><strong>' + (h.reviewer_name || '未知') + '</strong>: ' + h.action + ' - ' + (h.notes || h.reason || '') + ' (' + new Date(h.created_at).toLocaleString() + ')</p>';
+                            html += '<p><strong>' + (h.reviewer_name || '未知') + '</strong>: ' + h.action + ' - ' + (h.notes || h.reason || '') + ' (' + new Date(h.created_at).toLocaleString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai' }) + ')</p>';
                         });
                         html += '</div>';
                     }
@@ -890,7 +890,7 @@
                     html += '<tr><th>举报人</th><td>' + escapeHtml(report.reporter_name || '未知') + '</td></tr>';
                     html += '<tr><th>被举报人</th><td>' + escapeHtml(report.target_name || '未知') + ' (LV' + (report.target_role_level || '?') + ')</td></tr>';
                     html += '<tr><th>举报类型</th><td>' + getTargetTypeLabel(report.target_type) + '</td></tr>';
-                    html += '<tr><th>举报时间</th><td>' + new Date(report.created_at).toLocaleString() + '</td></tr>';
+                    html += '<tr><th>举报时间</th><td>' + new Date(report.created_at).toLocaleString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai' }) + '</td></tr>';
                     html += '<tr><th>举报原因</th><td>' + escapeHtml(report.reason || '无') + '</td></tr>';
                     html += '<tr><th>状态</th><td>' + getReportStatusLabel(report.status) + '</td></tr>';
                     html += '</table>';
@@ -912,7 +912,7 @@
                         html += '<div class="detail-section">';
                         html += '<h3>处理信息</h3>';
                         html += '<p><strong>处理人：</strong>' + escapeHtml(report.reviewer_name) + '</p>';
-                        html += '<p><strong>处理时间：</strong>' + new Date(report.reviewed_at).toLocaleString() + '</p>';
+                        html += '<p><strong>处理时间：</strong>' + new Date(report.reviewed_at).toLocaleString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai' }) + '</p>';
                         html += '<p><strong>处理结果：</strong>' + escapeHtml(report.review_result || '') + '</p>';
                         html += '</div>';
                     }

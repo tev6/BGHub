@@ -59,7 +59,7 @@
             </div>
             <div class="cj-controls-date-row">
                 <% if (gradeContext && ['G6', 'G7', 'G8'].includes(gradeContext.grade)) { %>
-                <button type="button" class="class-toggle-btn" id="show-all-classes-btn" data-i18n="cj.showAllClasses" data-show-my="cj.showMyClass">
+                <button type="button" class="class-toggle-btn" id="show-all-classes-btn" data-i18n="cj.showAllClasses" data-show-my="cj.showMyClass" data-default="显示其他班" data-active="仅显示本班">
                     显示其他班
                 </button>
                 <% } %>
@@ -78,7 +78,7 @@
             <% } else { %>
             <div class="cj-controls-row">
                 <% if (gradeContext && ['G6', 'G7', 'G8'].includes(gradeContext.grade)) { %>
-                <button type="button" class="class-toggle-btn" id="show-all-classes-btn" data-i18n="cj.showAllClasses" data-show-my="cj.showMyClass">
+                <button type="button" class="class-toggle-btn" id="show-all-classes-btn" data-i18n="cj.showAllClasses" data-show-my="cj.showMyClass" data-default="显示其他班" data-active="仅显示本班">
                     显示其他班
                 </button>
                 <% } %>
@@ -95,10 +95,18 @@
                 </form>
             </div>
             <% } %>
+            <div class="cj-quick-access-row">
+                <a href="/cj/quick<%= gradeContext && gradeContext.grade ? '?grade=' + gradeContext.grade + (gradeContext.class_name ? '&class=' + gradeContext.class_name : '') : '' %>"
+                   class="btn btn-ghost btn-sm quick-access-btn <%= !gradeContext || !gradeContext.grade ? 'quick-access-disabled' : '' %>"
+                   <%= !gradeContext || !gradeContext.grade ? 'data-needs-grade="true"' : '' %>
+                   data-i18n="cj.quickAccessTitle">
+                    快捷访问
+                </a>
+            </div>
             <div class="cj-panel-body">
                 <div class="cj-list">
                     <% boards.forEach(board => { %>
-                        <a class="cj-card" href="/cj/subject?subject=<%= board.slug %>">
+                        <a class="cj-card" href="/cj/subject?subject=<%= board.slug %><%= gradeContext && gradeContext.grade ? '&grade=' + gradeContext.grade + (gradeContext.class_name ? '&class=' + gradeContext.class_name : '') : '' %>">
                             <div class="cj-card-top">
                                 <strong class="board-name"><%= (locale === 'en' && (board.display_name_en || board.name_en)) ? (board.display_name_en || board.name_en) : (board.display_name || board.name) %></strong>
                                 <span class="board-dot" style="background: <%= board.color %>"></span>
@@ -182,13 +190,22 @@
             chatStream.scrollTop = chatStream.scrollHeight;
         }
 
+        var quickAccessBtn = document.querySelector('.quick-access-btn');
+        if (quickAccessBtn && quickAccessBtn.dataset.needsGrade === 'true') {
+            quickAccessBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                var msg = window.i18n && window.i18n.t ? window.i18n.t('cj.selectGradeFirst') : '请先填入班级和年级';
+                alert(msg);
+            });
+        }
+
         var showAllClasses = false;
         var btn = document.getElementById('show-all-classes-btn');
         if (btn) {
             var urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('showAllClasses') === 'true') {
                 showAllClasses = true;
-                btn.textContent = '仅显示本班';
+                btn.textContent = btn.dataset.active || '仅显示本班';
                 btn.classList.add('active');
             }
 
@@ -197,11 +214,11 @@
                 var url = new URL(window.location.href);
                 if (showAllClasses) {
                     url.searchParams.set('showAllClasses', 'true');
-                    btn.textContent = '仅显示本班';
+                    btn.textContent = btn.dataset.active || '仅显示本班';
                     btn.classList.add('active');
                 } else {
                     url.searchParams.delete('showAllClasses');
-                    btn.textContent = '显示其他班';
+                    btn.textContent = btn.dataset.default || '显示其他班';
                     btn.classList.remove('active');
                 }
                 window.location.href = url.toString();

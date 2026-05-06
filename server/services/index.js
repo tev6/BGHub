@@ -3,8 +3,11 @@ const { createNotificationService } = require('./notification');
 const { moderateChatMessage, moderatePost, moderateResource, moderateContent } = require('./moderation');
 const { createReviewService, REVIEW_STAGES, ITEM_TYPES } = require('./reviewService');
 const { createReportService, TARGET_TYPES, REPORT_STATUS } = require('./reportService');
+const { createDashboardService } = require('./dashboard');
+const { createWebSocketService } = require('./websocket');
+const { createEmailService } = require('./email');
 
-function createServices({ query, getUserLevel }) {
+function createServices({ query, getUserLevel, resend }) {
   const creditService = createCreditService({ query, getUserLevel });
   const notificationService = createNotificationService({ query });
   const moderation = { moderateChatMessage, moderatePost, moderateResource, moderateContent };
@@ -24,11 +27,18 @@ function createServices({ query, getUserLevel }) {
     getUserLevel 
   });
 
+  const dashboardService = createDashboardService({ query });
+  const webSocketService = createWebSocketService();
+  const emailService = createEmailService({ query, resend });
+
   return {
     creditService,
     notificationService,
     reviewService,
     reportService,
+    dashboardService,
+    webSocketService,
+    emailService,
     moderateChatMessage,
     moderatePost,
     moderateResource,
@@ -45,5 +55,8 @@ module.exports = {
   REVIEW_STAGES,
   ITEM_TYPES,
   TARGET_TYPES,
-  REPORT_STATUS
+  REPORT_STATUS,
+  createDashboardService,
+  createWebSocketService,
+  createEmailService
 };

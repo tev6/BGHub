@@ -1,6 +1,6 @@
 const express = require('express');
 
-function createResourcesRoutes({ query, requireAuth, requireLevel, upload, formatDate, buildCountdown, ensureColumn, getBoards, getBoardById, isStaff, wantsJson, setFlash, respondError, getUserLevel }) {
+function createResourcesRoutes({ query, requireAuth, requireLevel, upload, formatDate, buildCountdown, ensureColumn, getBoards, getBoardById, isStaff, wantsJson, setFlash, respondError, getUserLevel, createReviewItem }) {
   const router = express.Router();
 
   router.get('/new', requireAuth, (req, res, next) => {
@@ -89,6 +89,10 @@ function createResourcesRoutes({ query, requireAuth, requireLevel, upload, forma
         board_id, title, description, teacher, file_name, file_path, external_url, status, uploaded_by
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [boardId, title, description, teacher, fileName, filePath, externalUrl, status, req.user.id]);
+
+    if (status === 'pending') {
+      await createReviewItem('resource', result.lastID, req.user.id, true);
+    }
 
     if (wantsJson(req)) {
       res.status(201).json({ ok: true, status });

@@ -1016,6 +1016,80 @@ textarea {
   padding: 20px;
 }
 
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.section-meta {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.report-btn {
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.report-btn:hover {
+  opacity: 1;
+}
+
+.cj-revisions {
+  margin-top: 8px;
+}
+
+.cj-revisions .panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.revisions-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.revision-item {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.revision-item:last-child {
+  border-bottom: none;
+}
+
+.revision-meta {
+  display: block;
+  font-size: 0.85rem;
+}
+
+.revision-time {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.revision-diff {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.revision-diff del {
+  color: var(--error);
+  text-decoration: line-through;
+}
+
+.revision-diff ins {
+  color: var(--success);
+  text-decoration: none;
+}
+
 .cj-sidebar {
   position: sticky;
   top: 80px;
@@ -2316,6 +2390,52 @@ textarea.form-control {
   justify-content: flex-start;
 }
 
+.cj-quick-access-row {
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+}
+
+.quick-access-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.quick-access-btn.quick-access-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cj-quick-controls {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.quick-filter-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.quick-filter-row select {
+  min-width: 120px;
+}
+
+.quick-link-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.share-link-input {
+  flex: 1;
+  font-size: 0.85rem;
+}
+
 .schedule-grid {
   overflow-x: auto;
 }
@@ -2719,6 +2839,35 @@ textarea.form-control {
 .modal-body {
   padding: 20px;
   overflow-y: auto;
+}
+
+.report-reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.report-reasons label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.report-reasons label:hover {
+  background: var(--hover);
+}
+
+.modal-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }
 
 @media (max-width: 720px) {

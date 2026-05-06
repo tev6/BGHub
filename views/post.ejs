@@ -4,7 +4,7 @@
         <div class="post-meta">
             <span>作者: <%= post.username %></span>
             <span class="post-category"><%= post.category %></span>
-            <span>发布于: <%= new Date(post.created_at).toLocaleString() %></span>
+            <span>发布于: <%= new Date(post.created_at).toLocaleString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai' }) %></span>
         </div>
 	<div class="post-content" style="margin: 1.5rem 0; line-height: 1.8;">
 	    <%- formatContent(post.content, post.content_type) %>
@@ -32,7 +32,7 @@
                     <div class="comment">
                         <div class="comment-meta">
                             <span class="comment-author"><%= comment.username %></span>
-                            <span> · <%= new Date(comment.created_at).toLocaleString() %></span>
+                            <span> · <%= new Date(comment.created_at).toLocaleString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai' }) %></span>
                         </div>
 			<p class="comment-content">
 			    <%- formatContent(comment.content, comment.content_type) %>

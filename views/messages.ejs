@@ -121,7 +121,7 @@
 
         function formatDateTime(dateStr) {
             var d = new Date(dateStr);
-            return d.toLocaleString('zh-CN', { hour12: false });
+            return d.toLocaleString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai' });
         }
 
         function escapeHtml(text) {

@@ -2,17 +2,34 @@
     <section class="page-title">
         <span class="eyebrow">CJ</span>
         <h1>选择学科编辑</h1>
+        <% if (isG6G8 && userClass) { %>
+        <p>您可以编辑 <strong><%= userClass %></strong> 班的 CJ 内容</p>
+        <% } else if (isG6G8) { %>
+        <p>您可以编辑 CJ 内容</p>
+        <% } else { %>
         <p>选择要编辑的学科</p>
+        <% } %>
     </section>
 
     <section class="layout-grid">
         <div class="cj-select-grid">
             <% boards.forEach(function(board) { %>
                 <a href="/cj/edit?subject=<%= board.slug %>" class="card cj-select-card">
-                    <h3><%= board.name %></h3>
+                    <h3><%= board.name %><% if (board.class_name) { %> <span class="class-tag"><%= board.class_name %></span><% } %></h3>
                     <span class="slug"><%= board.slug %></span>
                 </a>
             <% }); %>
         </div>
     </section>
+<style>
+.class-tag {
+    font-size: 0.75em;
+    background: var(--primary);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    font-weight: normal;
+}
+</style>
 <%- include('../partials/footer') %>
